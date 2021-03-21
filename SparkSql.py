@@ -19,23 +19,23 @@ Join_PersonalRecord.show(10)
 
 # 多表查询
 conf = SparkConf().setMaster("local").setAppName("First_App")
-spark = SparkSession.builder.appName("Python Spark SQL basic example") \
+spark = SparkSession.builder.appName("app") \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
+# path01 = 'hdfs://localhost:9000/user/hadoop/csv/test.csv'
 path02 = "/home/hadoop/data/test/test.csv"
-# path01 = 'hdfs://localhost:9000/user/hadoop/csv/Comp_HosRegister.csv'
 # path02 = 'hdfs://localhost:9000/user/hadoop/csv/Join_PersonalRecord.csv'
-# Join_PersonalRecord = spark.read.csv(path01, header=True)
+# test01 = spark.read.csv(path01, header=True)
 Comp_HosRegister = spark.read.csv(path02, header=True)
 
-# Join_PersonalRecord.createOrReplaceTempView("test01")
+# test01.createOrReplaceTempView("test01")
 Comp_HosRegister.createOrReplaceTempView("test02")
 #
-# testDF = spark.sql("SELECT * FROM test01")
-testDF01 = spark.sql("select * from test02 where test02.Name='柳三女'")
+# testDF = spark.sql("SELECT * FROM test01 where test01.IDCardCode='150221192107235024'")
+testDF01 = spark.sql("select * from test02.OutHosDate is null ")
 # testDF02 = spark.sql(
     # "select test01.HR_PersonalCode_Vc, test02.PR_Name_Vc from test01, test02 where test01.HR_PersonalCode_Vc = test02.PR_PersonalCode_Vc")
-# testDF.show(3)
-testDF01.show()
+# testDF.show()
+testDF01.show(1)
 # testDF02.show(30)
