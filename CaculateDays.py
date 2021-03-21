@@ -17,6 +17,7 @@ for m, n in zip(data['OutHosDate'], data['InHosDate']):
         tt = 0
     days_list.append(tt)
 
+# 插入表中
 data.insert(loc=10, column='DaysInHos', value=days_list)
 
 data.to_csv(path, index=False)
