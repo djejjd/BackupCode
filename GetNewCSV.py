@@ -11,22 +11,27 @@ path_DrugCatalog = '/home/hadoop/data/new_csv/DrugCatalog.csv'
 
 # 大表路径
 path = '/home/hadoop/data/test/test.csv'
-path_2 = '/home/hadoop/data/test/test01.csv'
+path_2 = '/home/hadoop/data/new_csv/HosPrescriptionDetail.csv'
 
-# data01 = pd.read_csv(path01, dtype='object', error_bad_lines=False, engine='python')
+data01 = pd.read_csv(path_2, dtype='object', error_bad_lines=False, engine='python')
+print(list(data01))
+# size = 1000000
+#
+# data02 = pd.read_csv(path_HosPrescriptionDetail, dtype='object', error_bad_lines=False, na_values='NULL',
+#                      engine='python', chunksize=size)
+#
+# csv.field_size_limit(500 * 1024 * 1024)
 
-data02 = pd.read_csv(path, dtype='object', error_bad_lines=False, engine='python')
 
-
-def change(n):
-    if n[-2:] == '.0':
-        return n[:-2]
-    return n
+# def change(n):
+#     if n[-2:] == '.0':
+#         return n[:-2]
+#     return n
 
 
 # 修改列中值
-data02['DiseaseCode'] = data02['DiseaseCode'].astype(str)
-data02['DiseaseCode'] = data02['DiseaseCode'].apply(change)
+# data02['DiseaseCode'] = data02['DiseaseCode'].astype(str)
+# data02['DiseaseCode'] = data02['DiseaseCode'].apply(change)
 
 # data02.loc[data02['Sex'] == '1', 'Sex'] = '男'
 # data02.loc[data02['Sex'] == '2', 'Sex'] = '女'
@@ -37,13 +42,14 @@ data02['DiseaseCode'] = data02['DiseaseCode'].apply(change)
 
 # 删除某一列
 # print(data02.columns.values.tolist())
-# data01.drop('PersonalTypeName_y', axis=1, inplace=True)
-# data02.to_csv(path, index=False)
+# data01.drop('OutHosDate', axis=1, inplace=True)
+# data01.drop('InHosDate', axis=1, inplace=True)
+# data01.to_csv(path, index=False)
 
 # 去重复
-# data02.drop_duplicates(subset=['IDCardCode'], keep='first', inplace=True)
-# #
-# data01.set_index('IDCardCode', inplace=True)
-# data02.set_index('IDCardCode', inplace=True)
-# result = pd.merge(data01, data02, on='IDCardCode', how='left')
+data02.drop_duplicates(subset=['IDCardCode'], keep='first', inplace=True)
+#
+data01.set_index('IDCardCode', inplace=True)
+data02.set_index('IDCardCode', inplace=True)
+result = pd.merge(data01, data02, on='IDCardCode', how='left')
 # result.to_csv(path_2)

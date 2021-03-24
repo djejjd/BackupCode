@@ -14,7 +14,8 @@ for m, n in zip(data['OutHosDate'], data['InHosDate']):
         In = datetime.strptime(str(n), "%Y-%m-%d %H:%M:%S").date()
         tt = (Out - In).days
     except:
-        tt = 0
+        # 报错的行,天数设为-1便于后面删除
+        tt = -1
     days_list.append(tt)
 
 # 插入表中

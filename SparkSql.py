@@ -1,41 +1,16 @@
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, SQLContext, HiveContext
 
-# 利用Spark Sql从hdfs中进行查询
-# 单表查询
-'''
-conf = SparkConf().setMaster("local").setAppName("First_App")
-sc = SparkContext(conf=conf)
-
-sqlc = SQLContext(sc)
-
-path01 = 'hdfs://localhost:9000/user/hadoop/csv/Comp_HosRegister.csv'
-path02 = 'hdfs://localhost:9000/user/hadoop/csv/Join_PersonalRecord.csv'
-Join_PersonalRecord= sqlc.read.csv(path01)
-Comp_HosRegister= sqlc.read.csv(path02)
-Join_PersonalRecord.show(10)
-# Join_PersonalRecord.select("_c1", "_c3", "_c4", "_c5").where("_c3 = '张菊华'").show()
-'''
-
-# 多表查询
 conf = SparkConf().setMaster("local").setAppName("First_App")
 spark = SparkSession.builder.appName("app") \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
-# path01 = 'hdfs://localhost:9000/user/hadoop/csv/test.csv'
-path02 = "/home/hadoop/data/test/test.csv"
-# path02 = 'hdfs://localhost:9000/user/hadoop/csv/Join_PersonalRecord.csv'
-# test01 = spark.read.csv(path01, header=True)
+path02 = 'hdfs://192.168.191.165:9000/test/Comp_HosRegister.csv'
 Comp_HosRegister = spark.read.csv(path02, header=True)
 
-# test01.createOrReplaceTempView("test01")
-Comp_HosRegister.createOrReplaceTempView("test02")
-#
-# testDF = spark.sql("SELECT * FROM test01 where test01.IDCardCode='150221192107235024'")
-testDF01 = spark.sql("select * from test02.OutHosDate is null ")
-# testDF02 = spark.sql(
-    # "select test01.HR_PersonalCode_Vc, test02.PR_Name_Vc from test01, test02 where test01.HR_PersonalCode_Vc = test02.PR_PersonalCode_Vc")
-# testDF.show()
-testDF01.show(1)
-# testDF02.show(30)
+
+Comp_HosRegister.createOrReplaceTempView("test01")
+
+testDF = spark.sql("SELECT * FROM test01")
+testDF.show(1000)
