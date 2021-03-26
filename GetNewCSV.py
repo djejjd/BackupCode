@@ -14,7 +14,7 @@ path = '/home/hadoop/data/test/test.csv'
 path_2 = '/home/hadoop/data/new_csv/HosPrescriptionDetail.csv'
 
 data01 = pd.read_csv(path_2, dtype='object', error_bad_lines=False, engine='python')
-print(list(data01))
+
 # size = 1000000
 #
 # data02 = pd.read_csv(path_HosPrescriptionDetail, dtype='object', error_bad_lines=False, na_values='NULL',
@@ -47,9 +47,9 @@ print(list(data01))
 # data01.to_csv(path, index=False)
 
 # 去重复
-data02.drop_duplicates(subset=['IDCardCode'], keep='first', inplace=True)
-#
-data01.set_index('IDCardCode', inplace=True)
-data02.set_index('IDCardCode', inplace=True)
-result = pd.merge(data01, data02, on='IDCardCode', how='left')
+# data02.drop_duplicates(subset=['IDCardCode'], keep='first', inplace=True)
+
+# data01.set_index('IDCardCode', inplace=True)
+# data02.set_index('IDCardCode', inplace=True)
+# result = pd.merge(data01, data02, on='IDCardCode', how='left')
 # result.to_csv(path_2)
