@@ -1,6 +1,6 @@
 ----------------------------------------------------------------
-Sat Mar 27 09:14:03 CST 2021:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0178-713e-c8e7-000015880ab8 
+Sat Mar 27 14:49:03 CST 2021:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0178-7271-7bf3-000008a11750 
 on database directory /home/hadoop/PycharmProjects/pythonProject/clean/metastore_db with class loader sun.misc.Launcher$AppClassLoader@5d6f64b1 
 Loaded from file:/home/hadoop/.conda/envs/spark/lib/python3.6/site-packages/pyspark/jars/derby-10.12.1.1.jar
 java.vendor=Oracle Corporation
