@@ -1,4 +1,5 @@
-import csv
+from itertools import zip_longest
+from hdfs.client import Client
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
 
@@ -6,82 +7,107 @@ conf = SparkConf().setAppName("spark_example")
 sc = SparkContext(conf=conf)
 hiveCtx = HiveContext(sc)
 
-path = '/home/hadoop/data/school_data_csv/test.csv'
-path_HosRegister = '/home/hadoop/data/new_csv/HosRegister.csv'
-path_PersonalRecord = '/home/hadoop/data/new_csv/PersonalRecord.csv'
-path_Canton = '/home/hadoop/data/new_csv/Canton.csv'
-path_HosCostMain = '/home/hadoop/data/new_csv/HosCostMain.csv'
-path_DataDictionary = '/home/hadoop/data/new_csv/DataDictionary.csv'
-path_HosPrescriptionDetail = '/home/hadoop/data/new_csv/HosPrescriptionDetail.csv'
-path_DiagnoseTreatItem = '/home/hadoop/data/new_csv/DiagnoseTreatItem.csv'
-path_DrugCatalog = '/home/hadoop/data/new_csv/DrugCatalog.csv'
+
+# 删除多余列
+def drop_clos_data(data_all, drop_lists):
+    for name in drop_lists:
+        data_all = data_all.drop(name)
+    return data_all
 
 
 def get_union_data():
-    data_HosRegister = hiveCtx.read.csv(path_HosRegister, header=True)
-    data_PersonalRecord = hiveCtx.read.csv(path_PersonalRecord, header=True)
+    # 读取文件
+    data_HosRegister = hiveCtx.read.format('csv').option('header', 'true').load(path_HosRegister)
+    data_HosCostMain = hiveCtx.read.format('csv').option('header', 'true').load(path_HosCostMain)
+    data_Canton = hiveCtx.read.format('csv').option('header', 'true').load(path_Canton)
+    data_DiagnoseTreatItem = hiveCtx.read.format('csv').option('header', 'true').load(
+        path_DiagnoseTreatItem)
+    data_DrugCatalog = hiveCtx.read.format('csv').option('header', 'true').load(path_DrugCatalog)
+    data_PersonalRecord = hiveCtx.read.format('csv').option('header', 'true').load(path_PersonalRecord)
+    data_HosPrescriptionDetail = hiveCtx.read.format('csv').option('header', 'true').load(path_HosPrescriptionDetail)
+    data_DataDictionary = hiveCtx.read.format('csv').option('header', 'true').load(path_DataDictionary)
 
-    # 合并HosRegister和PersonalRecord
-    data = data_HosRegister.join(data_PersonalRecord, on="IDCardCode", how="left_outer").dropDuplicates(
+    # 删除无用列
+    data_HosRegister = drop_clos_data(data_HosRegister, drop_clo_HosRegister)
+    data_HosCostMain = drop_clos_data(data_HosCostMain, drop_clo_HosCostMain)
+    data_Canton = drop_clos_data(data_Canton, drop_clo_Canton)
+    data_DiagnoseTreatItem = drop_clos_data(data_DiagnoseTreatItem, drop_clo_DiagnoseTreatItem)
+    data_DrugCatalog = drop_clos_data(data_DrugCatalog, drop_clo_DrugCatalog)
+    data_PersonalRecord = drop_clos_data(data_PersonalRecord, drop_clo_PersonalRecord)
+    data_HosPrescriptionDetail = drop_clos_data(data_HosPrescriptionDetail, drop_clo_HosPrescriptionDetail)
+
+    # 合并HosRegister和HosCostMain表
+    data = data_HosRegister.join(data_HosCostMain, on='HosRegisterCode', how="left_outer").dropDuplicates(
         subset=['HosRegisterCode'])
-
+    # 合并PersonalRecord
+    data_PersonalRecord = data_PersonalRecord.dropDuplicates(subset=['CertificateCode'])
+    data = data.join(data_PersonalRecord, on='CertificateCode', how="left_outer").dropDuplicates(
+        subset=['HosRegisterCode'])
     # 合并Canton
-    data_Canton = hiveCtx.read.csv(path_Canton, header=True)
-    data = data.join(data_Canton, on="CantonCode", how="left_outer").dropDuplicates(subset=['HosRegisterCode'])
-
-    # 合并HosCostMain
-    data_HosCostMain = hiveCtx.read.csv(path_HosCostMain, header=True)
-    data = data.join(data_HosCostMain, on="HosRegisterCode", how="left_outer").dropDuplicates(
-        subset=['HosRegisterCode'])
+    data_Canton = data_Canton.dropDuplicates(subset=['CantonCode'])
+    data = data.join(data_Canton, on='CantonCode', how="left_outer").dropDuplicates(subset=['HosRegisterCode'])
 
     # 合并DataDictionary
-    data_DataDictionary = hiveCtx.read.csv(path_DataDictionary, header=True)
-    data = data.join(data_DataDictionary, on="PersonalType", how="left_outer").dropDuplicates(
-        subset=['HosRegisterCode'])
+    # 提取U103-01指定人员类型
+    data_dd = data_DataDictionary[(data_DataDictionary['Type'].isin('U103-01'))].dropDuplicates(
+        subset=['Code', 'Desc']).drop('DT', 'Type')
+    data_dd = data_dd.withColumnRenamed('Code', 'PersonalType')
+    data = data.join(data_dd, on='PersonalType', how="left_outer").dropDuplicates(subset=['HosRegisterCode'])
 
-    data.toPandas().to_csv(path, header=True, index=False)
+    # 合并HosPrescriptionDetail
+    data = data.join(data_HosPrescriptionDetail, on='HosRegisterCode', how='left_outer')
+    # 添加药物和耗材的项目类型(ItemType_Name)以及费用类型(Expense_Type_Name)
+    data_IN = data_DataDictionary[(data_DataDictionary['Type'].isin('U609-02'))].dropDuplicates(
+        subset=['Code', 'Desc']).drop('DT', 'Type')
+    data_IN = data_IN.withColumnRenamed('Code', 'ItemType')
+    data_IN = data_IN.withColumnRenamed('Desc', 'ItemType_Name')
+    data = data.join(data_IN, on='ItemType', how='left_outer')
 
+    data_ETN = data_DataDictionary[(data_DataDictionary['Type'].isin('U608-04'))].dropDuplicates(
+        subset=['Code', 'Desc']).drop('DT', 'Type')
+    data_ETN = data_ETN.withColumnRenamed('Code', 'DrugCatalog')
+    data_ETN = data_ETN.withColumnRenamed('Desc', 'Expense_Type_Name')
+    data = data.join(data_ETN, on='DrugCatalog', how='left_outer')
 
-def get_join_data():
-    data_HosPrescriptionDetail = hiveCtx.read.csv(path_HosPrescriptionDetail, header=True)
-    data_DiagnoseTreatItem = hiveCtx.read.csv(path_DiagnoseTreatItem, header=True)
-    data_DrugCatalog = hiveCtx.read.csv(path_DrugCatalog, header=True)
-
-    path01 = '/home/hadoop/data/school_data_csv/test02'
-    # 合并HosPrescriptionDetail、DrugCatalog、DiagnoseTreatItem
-    data = data_HosPrescriptionDetail.join(data_DiagnoseTreatItem, on="ItemCode", how="left_outer")
-    data = data_HosPrescriptionDetail.join(data_DrugCatalog, on="ItemCode", how="left_outer")
-
-    # 速度慢
-    data.coalesce(2).write.mode("overwrite").option("mapreduce.fileoutputcommitter.marksuccessfuljobs", "false").option(
-        "header", "true").option("name", "test02").csv(path01)
-
-    # print(data.count())
-    # data.toPandas().to_csv(path01, header=True, index=False)
-
-
-# 合并最后两张大表
-def get_union_all():
-    path = '/home/hadoop/data/school_data_csv/test.csv'
-    path01 = '/home/hadoop/data/school_data_csv/test01.csv'
-    path02 = '/home/hadoop/data/school_data_csv/test03'
-    data = hiveCtx.read.csv(path, header=True)
-    data01 = hiveCtx.read.csv(path01, header=True)
-    all_data = data.join(data01, on="HosRegisterCode", how="left_outer")
-    # all_data.show(10000)
-    # print(all_data.count())
-    all_data.coalesce(5).write.mode("overwrite").option("mapreduce.fileoutputcommitter.marksuccessfuljobs", "false").option(
-        "header", "true").csv(path02)
-
-
-def get_count():
-    path = '/home/hadoop/data/school_data_csv/test03/part-00000-89a8fda1-9f29-4c48-8d8a-8ac5717f6314-c000.csv'
-    data = hiveCtx.read.csv(path, header=True)
-    # data.show(1000)
-    # print(data.count())
+    # 合并DiagnoseTreatItem和DrugCatalog并合并到大表中
+    data_Drug_Diagnose = data_DrugCatalog.select('*').union(data_DiagnoseTreatItem.select('*'))
+    data = data.join(data_Drug_Diagnose, on='ItemCode', how='left_outer')
+    data.show(5)
+    # 存储
+    data.write.format('csv').option("header", "true").mode("overwrite").save(path_all)
 
 
 if __name__ == '__main__':
-    # get_join_data()
-    get_union_all()
-    # get_count()
+    '''
+        注意：
+        先在hdfs中创建存储最终表的文件夹，然后授权可以进行读写
+        hdfs dfs -chmod 777 /result/all_form
+    '''
+    # csv文件和最终合成的大表的存放的路径
+    base_path = "hdfs://localhost:9000/csv/"
+    path_all = "hdfs://localhost:9000/result/all_form"
+
+    # 构造存放csv文件的路径
+    path_HosRegister = base_path + 'Comp_HosRegister'
+    path_HosCostMain = base_path + 'Comp_HosCostMain'
+    path_Canton = base_path + 'Join_Canton'
+    path_DiagnoseTreatItem = base_path + 'CFG_DiagnoseTreatItem'
+    path_DrugCatalog = base_path + 'CFG_DrugCatalog'
+    path_PersonalRecord = base_path + 'Join_PersonalRecord'
+    path_HosPrescriptionDetail = base_path + 'Comp_HosPrescriptionDetail'
+    path_DataDictionary = base_path + 'Global_DataDictionary'
+
+    client = Client("http://192.168.191.82:50070", root="/", timeout=10000, session=False)
+
+    # 要丢弃的列
+    drop_clo_HosRegister = ['CantonCode', 'FamilyCode', 'PersonalCode', 'InstitutionCode', 'OperationCode',
+                            'RegisterDate']
+    drop_clo_HosCostMain = ['SettlementDate', 'Ecbc', 'Zfdbbz', 'Mzbcje', 'DT']
+    drop_clo_Canton = ['CantonName', 'ZoneCode', 'UpperCode', 'Level', 'DT']
+    drop_clo_DiagnoseTreatItem = ['ItemCode_Vc', 'ItemBrevityCode', 'ItemType', 'CompRatio']
+    drop_clo_DrugCatalog = ['DrugCode', 'DrugBrevityCode', 'OtherName', 'DosageTypeCode', 'DrugType', 'DrugCatalog',
+                            'Usage', 'Memo', 'CatalogClass', 'CompRatio', 'UseDrugClass', 'RelativeCode', 'Country']
+    drop_clo_PersonalRecord = ['PersonalCode', 'FamilyCode', 'Name', 'Gender', 'Age', 'Brithday', 'Folk', 'DT']
+    drop_clo_HosPrescriptionDetail = ['PrescriptionCode', 'ItemIndex', 'DT']
+
+    get_union_data()
