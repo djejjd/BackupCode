@@ -8,7 +8,7 @@ sc = SparkContext(conf=conf)
 hiveCtx = HiveContext(sc)
 
 '''
-# 入院时间(OutHosDate)存在空值， 删除
+# 入院时间(OutHosDate)存在空值，删除
 # 日期相减得负值，删除
 # 新添一行住院日期(DaysInHos)
 # 性别(Sex)统一为男，女
@@ -21,7 +21,7 @@ hiveCtx = HiveContext(sc)
 def search(file):
     starttime = time.time()
     dataFile = hiveCtx.read.format('csv').option('header', 'true').load(file)
-    dataFile.registerTempTable("tweets01")
+    dataFile.createOrReplaceTempView("tweets01")
     dataTweets = hiveCtx.sql("""SELECT * from tweets01 where tweets01.OutHosDate is null""")
     endtime = time.time()
     dataTweets.show(1000)
