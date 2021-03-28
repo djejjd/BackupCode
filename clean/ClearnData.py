@@ -68,6 +68,7 @@ def dealDiseaseCode(data):
     dealNull(data)
 
 
+# 剩余null替换为0
 def dealNull(data):
     # data = hiveCtx.read.format('csv').option('header', 'true').load(file)
     data = data.fillna('0')
