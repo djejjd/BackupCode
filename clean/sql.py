@@ -1,38 +1,65 @@
-# from pyspark import SparkContext, SparkConf
-# from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
-# from pyspark.sql.functions import *
-#
-#
-# spark = SparkSession.builder \
-#     .master("local") \
-#     .appName("example") \
-#     .config("spark.debug.maxToStringFields", "100") \
-#     .getOrCreate()
-#
-# inputFile01 = 'hdfs://localhost:9000/result/form_par'
-# # inputFile01 = 'hdfs://localhost:9000/data/data_tree'
-# # inputFile01 = '/home/hadoop/data/test/csv'
-# inputs01 = spark.read.format('parquet').load(inputFile01)
-# inputs01.createOrReplaceTempView("tweets01")
-# dataTweets = spark.sql("""SELECT Name, HosRegisterCode, DrugName from tweets01 where tweets01.Name = '柳三女'""")
-# dataTweets.show(100)
-
-
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder.appName('JupyterPySpark').enableHiveSupport().getOrCreate()
+import time
+import pandas as pd
 import pyspark.sql.functions as F
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
 
-# 原始数据
-test = spark.createDataFrame([('2018-01', '项目1', 100), ('2018-01', '项目2', 200), ('2018-01', '项目3', 300),
-                              ('2018-02', '项目1', 1000), ('2018-02', '项目2', 2000), ('2018-03', '项目4', 999),
-                              ('2018-05', '项目1', 6000), ('2018-05', '项目2', 4000), ('2018-05', '项目4', 1999)
-                              ], ['月份', '项目', '收入'])
-test.show()
+spark = SparkSession.builder \
+    .master("local") \
+    .appName("example") \
+    .config("spark.debug.maxToStringFields", "100") \
+    .config("spark.sql.shuffle.partitions", "400") \
+    .config("spark.default.parallelism", "600") \
+    .config("spark.sql.auto.repartition", "true") \
+    .config("spark.sql.execution.arrow.enabled", "true") \
+    .enableHiveSupport() \
+    .getOrCreate()
 
-test_pivot = test.groupBy('月份') \
-    .pivot('项目', ['项目1', '项目2', '项目3', '项目4']) \
-    .agg(F.sum('收入')) \
-    .fillna(0)
+starttime = time.time()
 
-test_pivot.show()
+inputFile01 = 'hdfs://localhost:9000/result/form_par'
+inputs01 = spark.read.format('parquet').load(inputFile01)
+inputs01.createOrReplaceTempView("tweets01")
+endtime = time.time()
+print("1: ", endtime - starttime)
+# testDF['Age'], testDF['Sex'], testDF['HosRegisterCode']
+# testDF["CertificateCode"], testDF['Desc'], testDF['AllName'], testDF["Name"],
+starttime = time.time()
+testDF = spark.sql(
+    """SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode FROM tweets01 WHERE tweets01.Name= '柳三女'""") \
+    .withColumn("id", F.monotonically_increasing_id())
+endtime = time.time()
+print("2: ", endtime - starttime)
+
+start = time.time()
+testDF = testDF.select('*').where((testDF.id >= 0) & (testDF.id < 20))
+endt = time.time()
+print('lll: ', endt - start)
+
+start = time.time()
+ddl = testDF.toPandas()
+end = time.time()
+print("ddl: ", end - start)
+
+start = time.time()
+
+list_persons = map(lambda row: row.asDict(), testDF.collect())
+
+end = time.time()
+print(type(list_persons))
+print(list_persons)
+print("ddl: ", end - start)
+
+# starttime = time.time()
+json_list = []
+for a, b, c, d, e, f, g in zip(testDF["CertificateCode"], testDF['Desc'], testDF['AllName'], testDF["Name"], testDF['Age'], testDF['Sex'], testDF['HosRegisterCode']):
+    json_dict = {'CertificateCode': a, 'Desc': b, 'AllName': c, 'Name': d, 'Age': e, 'Sex': f,
+                 'HosRegisterCode': g}
+    json_list.append(json_dict)
+
+print(type(json_list))
+print(json_list)
+# endtime = time.time()
+# print("3: ", endtime - starttime)
+# print(json_list)
+# print(tst)

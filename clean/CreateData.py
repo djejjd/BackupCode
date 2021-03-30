@@ -1,6 +1,6 @@
 import re
 import pyspark.sql.functions as f
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, IntegerType
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
 
@@ -27,6 +27,11 @@ def strQ2B(s):
     return ss
 
 
+def getData(s):
+    return int(s)
+
+
+# 创建数据集
 def create_data(path):
     data_par = spark.read.format('parquet').load(path)
     list_name = data_par.select('DrugName').dropDuplicates(subset=['DrugName']).toPandas().values.tolist()
@@ -41,9 +46,7 @@ def create_data(path):
     # 提取总表中的住院等级码和药品名
     data = data_par.select('HosRegisterCode', 'DrugName').where(data_par['DrugName'] != '0')
     data = data.withColumn("DrugName", changeNameUDF(data.DrugName))
-    # '''
-    # TODO: 未对总表的药品名进行清洗
-    # '''
+
     # 给所有使用过的药品记1
     data = data.withColumn('Times', f.lit(1))
     # 以住院登记码做聚合，将药品名一列转为行，并进行匹配计算次数
@@ -52,20 +55,32 @@ def create_data(path):
     data_pivot.write.format('parquet').mode("overwrite").save(path_csv)
 
 
-# 测试是否正确
+# 测试数据集内容是否正确
 def test(path1, path2):
     inputs01 = spark.read.format('parquet').load(path1)
-    # 总表的柳三女的相关数据
-    df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.HosRegisterCode == 'J9042610000000290002')
-    df.show(100)
-    df = df.select('DrugName').where("DrugName like '低钙腹膜%'")
-    df.show(50)
+    # 总表相关数据
+    df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.DrugName != '0').withColumn("DrugName", changeNameUDF(inputs01.DrugName))
+    df = df.withColumn("Times", f.lit(1))
+    dd = df.groupby("HosRegisterCode", "DrugName").agg(f.sum('Times')).withColumnRenamed("sum(Times)", "Times")
 
-    # 数据集里的柳三女的相关数据
+    # 验证前一百行是否正确
+    data_lines = dd.head(100)
+    
+    # 数据集中的相关数据
     data = spark.read.format('parquet').load(path2)
-    data = data.select("HosRegisterCode", "低钙腹膜透析液", "葡萄糖注射液", "参附注射液").where(
-        data.HosRegisterCode == 'J9042610000000290002')
-    data.show()
+    # 验证是否合理
+    for line in data_lines:
+        dd_new = data.select("HosRegisterCode", line['DrugName']).where(data.HosRegisterCode == str(line['HosRegisterCode']))
+        ddf = dd_new.select(dd_new[line['DrugName']]).head(1)
+        if ddf[0][0] == line['Times']:
+            continue
+        else:
+            print(line['Times'], ddf[0][0])
+
+    # 数据集里的相关数据
+    # data = data.select("HosRegisterCode", "低钙腹膜透析液", "葡萄糖注射液", "参附注射液").where(
+    #     data.HosRegisterCode == 'J9042610000000290002')
+    # data.show()
 
 
 if __name__ == '__main__':
@@ -81,6 +96,7 @@ if __name__ == '__main__':
 
     # 注册自定义函数
     changeNameUDF = f.udf(changeDrugName, StringType())
+    getDataUDF = f.udf(getData, IntegerType())
 
     # create_data(path_par)
     # 测试数据集是否有问题
