@@ -1,7 +1,6 @@
 import re
 import pyspark.sql.functions as f
 from pyspark.sql.types import StringType, IntegerType
-from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
 
 
@@ -12,7 +11,6 @@ def changeDrugName(name):
 
 
 # 清洗药品名
-# def strQ2B(ustring):
 def strQ2B(s):
     n = ''
     for char in s:
@@ -25,10 +23,6 @@ def strQ2B(s):
         n += num
     ss = re.sub('\(.*\)', '', n).replace(' ', '')
     return ss
-
-
-def getData(s):
-    return int(s)
 
 
 # 创建数据集
@@ -77,11 +71,6 @@ def test(path1, path2):
         else:
             print(line['Times'], ddf[0][0])
 
-    # 数据集里的相关数据
-    # data = data.select("HosRegisterCode", "低钙腹膜透析液", "葡萄糖注射液", "参附注射液").where(
-    #     data.HosRegisterCode == 'J9042610000000290002')
-    # data.show()
-
 
 if __name__ == '__main__':
     spark = SparkSession.builder \
@@ -96,7 +85,6 @@ if __name__ == '__main__':
 
     # 注册自定义函数
     changeNameUDF = f.udf(changeDrugName, StringType())
-    getDataUDF = f.udf(getData, IntegerType())
 
     # create_data(path_par)
     # 测试数据集是否有问题

@@ -3,11 +3,11 @@ from pyspark.sql import SparkSession
 
 
 def print_data(path01, path02):
-    data01 = spark.read.format('parquet').load(path01)
-    data02 = spark.read.format('parquet').load(path02)
-    data01.where((data01['注射用胞磷胆碱钠'] != 0) | (data01['木瓜丸'] != 0) | \
-                 (data01['一次性鼻胃肠管'] != 0) | (data01['卡前列素氨丁三醇注射液'] != 0)).show(10)
-    data02.show(50)
+    # data01 = spark.read.format('parquet').load(path01)
+    data02 = spark.read.format('parquet').load(path02).dropDuplicates(subset=['HosRegisterCode'])
+    # data01.where((data01['注射用胞磷胆碱钠'] != 0) | (data01['木瓜丸'] != 0) | \
+    #              (data01['一次性鼻胃肠管'] != 0) | (data01['卡前列素氨丁三醇注射液'] != 0)).show(10)
+    data02.where(data02.PersonalType == '17').show(50)
 
 
 if __name__ == '__main__':
