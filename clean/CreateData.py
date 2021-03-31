@@ -10,14 +10,18 @@ def changeDrugName(name):
     return name
 
 
+# 注册自定义函数
+changeNameUDF = f.udf(changeDrugName, StringType())
+
+
 # 清洗药品名
 def strQ2B(s):
     n = ''
     for char in s:
         num = ord(char)
-        if num == 0x3000:        #将全角空格转成半角空格
+        if num == 0x3000:  # 将全角空格转成半角空格
             num = 32
-        elif 0xFF01 <=num <= 0xFF5E:       #将其余全角字符转成半角字符
+        elif 0xFF01 <= num <= 0xFF5E:  # 将其余全角字符转成半角字符
             num -= 0xFEE0
         num = chr(num)
         n += num
@@ -53,18 +57,21 @@ def create_data(path):
 def test(path1, path2):
     inputs01 = spark.read.format('parquet').load(path1)
     # 总表相关数据
-    df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.DrugName != '0').withColumn("DrugName", changeNameUDF(inputs01.DrugName))
+    df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.DrugName != '0').withColumn("DrugName",
+                                                                                                   changeNameUDF(
+                                                                                                       inputs01.DrugName))
     df = df.withColumn("Times", f.lit(1))
     dd = df.groupby("HosRegisterCode", "DrugName").agg(f.sum('Times')).withColumnRenamed("sum(Times)", "Times")
 
     # 验证前一百行是否正确
     data_lines = dd.head(100)
-    
+
     # 数据集中的相关数据
     data = spark.read.format('parquet').load(path2)
     # 验证是否合理
     for line in data_lines:
-        dd_new = data.select("HosRegisterCode", line['DrugName']).where(data.HosRegisterCode == str(line['HosRegisterCode']))
+        dd_new = data.select("HosRegisterCode", line['DrugName']).where(
+            data.HosRegisterCode == str(line['HosRegisterCode']))
         ddf = dd_new.select(dd_new[line['DrugName']]).head(1)
         if ddf[0][0] == line['Times']:
             continue
@@ -82,9 +89,6 @@ if __name__ == '__main__':
     path_par = 'hdfs://localhost:9000/result/form_par'
     # 存放数据集（仅含有住院等级码，药品名，以及每种药的使用次数）
     path_csv = 'hdfs://localhost:9000/data/data_tree'
-
-    # 注册自定义函数
-    changeNameUDF = f.udf(changeDrugName, StringType())
 
     # create_data(path_par)
     # 测试数据集是否有问题

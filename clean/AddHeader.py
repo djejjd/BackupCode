@@ -6,7 +6,7 @@ from pyspark.sql.functions import split
 
 
 # 将txt文件转为csv并加表头
-def add_header(path_file, path_csv,name_lists):
+def add_header(path_file, path_csv, name_lists):
     # 获得hdfs中txt文件的路径以及文件名
     files = client.list(path_file, status=False)
     files = sorted(files, key=lambda i: len(i), reverse=False)
@@ -91,5 +91,4 @@ if __name__ == '__main__':
          'UnallowedComp',
          'CompRatio',
          'DT']]
-    add_header(path_txt, path_csv,name_lists)
-
+    add_header(path_txt, path_csv, name_lists)

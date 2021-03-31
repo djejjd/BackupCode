@@ -1,7 +1,7 @@
 import time
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, SQLContext, HiveContext, Row
-from pyspark.sql.functions import to_date, datediff
+import pyspark.sql.functions as F
 
 conf = SparkConf().setAppName("spark_example").set("spark.default.parallelism", '16')
 sc = SparkContext(conf=conf)
@@ -31,7 +31,8 @@ def search(file):
 # 修改性别
 def changeSex(file):
     df = hiveCtx.read.format('csv').option('header', 'true').load(file)
-    df = df.replace({'1': '男', '2': '女', '男性': '男', '女性': '女'})
+    # df.show(10)
+    df = df.replace({'1': '男', '2': '女', '男性': '男', '女性': '女'}, subset=['Sex'])
     changeOutHosDate(df)
 
 
@@ -47,14 +48,14 @@ def changeOutHosDate(data):
 def addDaysInHos(data):
     # data = hiveCtx.read.format('csv').option('header', 'true').load(file)
     # 删除时分秒
-    data = data.withColumn('OutHosDate', to_date(data.OutHosDate.substr(1, 10)))
-    data = data.withColumn('InHosDate', to_date(data.OutHosDate.substr(1, 10)))
+    data = data.withColumn('OutHosDate', F.to_date(data.OutHosDate.substr(1, 10)))
+    data = data.withColumn('InHosDate', F.to_date(data.OutHosDate.substr(1, 10)))
     # 计算天数
-    data = data.withColumn('DaysInHos', datediff(data['OutHosDate'], data['InHosDate']))
+    data = data.withColumn('DaysInHos', F.datediff(data['OutHosDate'], data['InHosDate']))
     # 删除天数为负数的行
     data = data.select('*').where(data.DaysInHos >= 0)
     # 删除OutHosDate和InHosDate
-    data = data.drop('OutHosDate').drop('InHosDate')
+    data = data.drop('OutHosDate', 'InHosDate')
     dealDiseaseCode(data)
 
 
@@ -75,8 +76,24 @@ def dealNull(data):
     data.write.format('csv').option("header", "true").mode("overwrite").save(inputFile2)
 
 
-if __name__ == '__main__':
-    inputFile = 'hdfs://localhost:9000/result/all_form'
-    inputFile2 = 'hdfs://localhost:9000/result/cleaned_form'
-    changeSex(inputFile)
+# 修改年龄
+def getNewAge(path):
+    # 150221 1940 0212472x
+    data = hiveCtx.read.format('parquet').load(path)
 
+    data = data.withColumn("Born", F.split('CertificateCode', '\d{7}.$')) \
+        .withColumn('Born', F.concat_ws("", "Born")) \
+        .withColumn('Born', F.split('Born', '\d{6}')) \
+        .withColumn('Born', F.concat_ws("", "Born"))
+
+    data = data.withColumn("Age", F.when((data.DT - data.Born) != data.Age, data.DT - data.Born).otherwise(data.Age)) \
+        .drop('Born')
+    data.show()
+    data.write.format('parquet').mode("overwrite").save(path)
+
+
+if __name__ == '__main__':
+    inputFile = 'hdfs://localhost:9000/result/form_par'
+    inputFile2 = 'hdfs://localhost:9000/result/cleaned_form'
+    # changeSex(inputFile)
+    getNewAge(inputFile)
