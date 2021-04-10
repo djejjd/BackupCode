@@ -1,3 +1,4 @@
+import time
 import CreateData as CD
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
@@ -25,7 +26,9 @@ from pyspark.sql.types import DecimalType, IntegerType
 '''
 
 
-# TODO:统计近三年某些地区的扶贫人口的患病年龄分布以及用药类型
+# TODO: 按月分类统计药品（分甲、乙、丙）
+# TODO：三年的扶贫费用开支对比
+# TODO：多做对比突出显示扶贫
 # 机器学习
 # TODO:预测未来几年医保扶贫费用的持续开支情况
 # TODO:预测未来几年扶贫人口患病人群主要用药情况(纳入医保补偿范围)
@@ -59,18 +62,40 @@ def getDataDrugAllowed(path):
 
 
 # 获取🥇三年来建档立卡人口的药品使用情况
-def getDataDrugPoor(path):
-    data = spark.read.format('parquet').load(path).select('PersonalType', 'DrugName', 'DT', 'Count')
-    data = data.where((data.PersonalType == '17') & (data.DrugName != '0')) \
-        .withColumn('DrugName', CD.changeNameUDF(data.DrugName)) \
-        .drop('PersonalType') \
-        .withColumn('Count', data.Count.cast(IntegerType()))
-    dataDrug = data.groupby('DrugName') \
-        .pivot('DT', ['2017', '2018', '2019']) \
-        .agg(F.sum('Count')) \
+def getDataDrugPoor(path, tt):
+    data = spark.read.format('parquet').load(path)
+    # 处理甲类药,获得甲类药每年的开销以及每年使用的数量
+    data01 = data.select('PersonalType', 'DrugName', 'DT', 'Count', 'FeeSum', 'AllowedComp', 'CompRatio',
+                         'CompRatio_Type')
+    # & (data01.CompRatio_Type == '{}'.format(tt))
+
+    data01 = data01.where((data01.PersonalType == '17') & (data01.DrugName != '0')) \
+        .withColumn("Count", data01.Count.cast(IntegerType())) \
+        .withColumn("FeeSum", data01.FeeSum.cast(IntegerType())) \
+        .withColumn("DrugName", CD.changeNameUDF(data01.DrugName))
+    # data01.show()
+    data01 = data01.drop('PersonalType', 'CompRatio_Type', 'CompRatio', 'AllowedComp')
+
+    data01_Fee = data01.drop("Count") \
+        .groupby("DrugName") \
+        .pivot("DT", ['2017', '2018', '2019']) \
+        .agg(F.sum('FeeSum')) \
         .fillna(0)
-    dataDrug = dataDrug.orderBy(dataDrug['2019'].desc())
-    dataDrug.show(50)
+    data01_Fee = data01_Fee.orderBy(data01_Fee['2019'].desc())
+    data_fee = []
+    for i in data01_Fee.head(20):
+        dd = {'drugName': i['DrugName']}
+        tt = [i['2017'], i['2018'], i['2019']]
+        dd['drugFee'] = tt
+        data_fee.append(dd)
+
+    # data01_Count = data01.drop("FeeSum")\
+    #     .groupby("DrugName")\
+    #     .pivot("DT", ['2017', '2018', '2019'])\
+    #     .agg(F.sum('Count'))\
+    #     .fillna(0)
+    # data01_Count = data01_Count.orderBy(data01_Count['2019'].desc())
+    # data01_Count.show()
 
 
 # 统计近三年患病扶贫人口的地理分布：总共21335人次
@@ -105,21 +130,88 @@ def getDataPlacePoor(path):
 
 
 # 统计近三年患病扶贫人口的年龄分布
-def getDataAgePoor(path):
-    data = spark.read.format('parquet').load(path) \
-        .select('PersonalType', 'DT', 'HosRegisterCode', 'Age') \
+def getDataAgePoor(path, year):
+    start = time.time()
+    data = spark.read.format('parquet').load(path)
+    end = time.time()
+    # print(end - start)
+
+    start = time.time()
+    data = data.where("DT == {}".format(year)) \
+        .select('PersonalType', 'DT', 'HosRegisterCode', 'Age', 'Sex') \
         .dropDuplicates(subset=['HosRegisterCode']) \
         .where('PersonalType = 17') \
         .drop("HosRegisterCode", "PersonalType") \
         .withColumn('Count', F.lit(1))
-    data = data.groupBy('Age') \
-        .pivot('DT', ['2017', '2018', '2019']) \
-        .agg(F.sum('Count')).fillna('0') \
-        .fillna(0)
-    data = data.withColumn('Age', data.Age.cast(IntegerType())) \
-        .orderBy(data['2019'].desc())
+    end = time.time()
+    # print(end - start)
+
+    start = time.time()
+    data = data.withColumn('Age', data.Age.cast(IntegerType())).drop("DT")
     data.show()
-    data.groupby().sum().show()
+    data_new = data.groupby("Age") \
+        .pivot("Sex", ['男', '女']) \
+        .agg(F.sum('Count')) \
+        .fillna(0)
+    end = time.time()
+    # print(end - start)
+
+    # start = time.time()
+    # men_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    # women_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    # for i in data_new.collect():
+    #     p = int(i['Age'] / 10)
+    #     if p > 9:
+    #         p = 9
+    #     men_list[p] += int(i['男'])
+    #     women_list[p] += int(i['女'])
+    # end = time.time()
+    # print(end - start)
+
+    data.createOrReplaceTempView("form")
+    start = time.time()
+    df = spark.sql("""
+    Select Sex,
+           sum(case when Age > 90 then 1 else 0 end) as A,
+           sum(case when Age between 80 and 89 then 1 else 0 end) as B,
+           sum(case when Age between 70 and 79 then 1 else 0 end) as C,
+           sum(case when Age between 60 and 69 then 1 else 0 end) as D,
+           sum(case when Age between 50 and 59 then 1 else 0 end) as E,
+           sum(case when Age between 40 and 49 then 1 else 0 end) as F,
+           sum(case when Age between 30 and 39 then 1 else 0 end) as G,
+           sum(case when Age between 20 and 29 then 1 else 0 end) as H,
+           sum(case when Age between 10 and 19 then 1 else 0 end) as I,
+           sum(case when Age between 0 and 9 then 1 else 0 end) as J
+    from form
+    group by Sex""")
+    end = time.time()
+    print(end - start)
+
+    start = time.time()
+    df_col = df.collect()
+    men_list = [df_col[1][1], df_col[1][2], df_col[1][3], df_col[1][4], df_col[1][5], df_col[1][6], df_col[1][7],
+                df_col[1][8], df_col[1][9], df_col[1][10], ]
+    women_list = [df_col[2][1], df_col[2][2], df_col[2][3], df_col[2][4], df_col[2][5], df_col[2][6], df_col[2][7],
+                  df_col[2][8], df_col[2][9], df_col[2][10], ]
+    end = time.time()
+    print(end - start)
+    print(men_list)
+
+    # data_women = data.where(data.Sex == '女').drop('Sex')
+    # data_women = data_women.groupBy('Age') \
+    #     .pivot('DT', ['2017', '2018', '2019']) \
+    #     .agg(F.sum('Count'))\
+    #     .fillna(0)
+
+    # data_men = data.where(data.Sex == '男').drop('Sex')
+    # data_men = data_men.groupBy('Age') \
+    #     .pivot('DT', ['2017', '2018', '2019']) \
+    #     .agg(F.sum('Count')).fillna('0') \
+    #     .fillna(0)
+    # data = data.withColumn('Age', data.Age.cast(IntegerType())) \
+    #     .orderBy(data['2019'].desc())
+    # data.show()
+    # data.groupby().sum().show()
 
 
 # TODO:统计近三年某些地区的扶贫人口的患病年龄分布以及用药类型
@@ -128,27 +220,27 @@ def getDataAgeInPlace(path):
 
 
 if __name__ == '__main__':
-    # spark = SparkSession.builder \
-    #     .master("local") \
-    #     .appName("example") \
-    #     .config("spark.debug.maxToStringFields", "100") \
-    #     .config("spark.sql.shuffle.partitions", "400") \
-    #     .config("spark.default.parallelism", "600") \
-    #     .config("spark.sql.auto.repartition", "true") \
-    #     .config("spark.sql.execution.arrow.enabled", "true") \
-    #     .enableHiveSupport() \
-    #     .getOrCreate()
-
-    # 总表路径
     spark = SparkSession.builder \
         .master("local") \
         .appName("example") \
-        .config("spark.debug.maxToStringFields", "1000") \
+        .config("spark.debug.maxToStringFields", "100") \
+        .config("spark.sql.shuffle.partitions", "400") \
+        .config("spark.default.parallelism", "600") \
+        .config("spark.sql.auto.repartition", "true") \
+        .config("spark.sql.execution.arrow.enabled", "true") \
+        .enableHiveSupport() \
         .getOrCreate()
+
+    # 总表路径
+    # spark = SparkSession.builder \
+    #     .master("local") \
+    #     .appName("example") \
+    #     .config("spark.debug.maxToStringFields", "1000") \
+    #     .getOrCreate()
 
     inputFile = 'hdfs://localhost:9000/result/form_par'
     # getDataMed(inputFile)
     # getDataDrugAllowed(inputFile)
-    # getDataDrugPoor(inputFile)
+    # getDataDrugPoor(inputFile, tt="乙类")
     # getDataPlacePoor(inputFile)
-    getDataAgePoor(inputFile)
+    getDataAgePoor(inputFile, '2017')

@@ -29,6 +29,6 @@ if __name__ == '__main__':
     path_csv = 'hdfs://localhost:9000/result/cleaned_form'
 
     path_par = 'hdfs://localhost:9000/result/form_par'
-    getNewAge(path_csv, path_par)
-    # data_csv = spark.read.format('csv').option('header', 'true').load(path_csv)
-    # data_csv.write.format('parquet').mode("overwrite").save(path_par)
+    # getNewAge(path_csv, path_par)
+    data_csv = spark.read.format('csv').option('header', 'true').load(path_csv)
+    data_csv.write.format('parquet').mode("overwrite").save(path_par)

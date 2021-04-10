@@ -99,8 +99,7 @@ if __name__ == '__main__':
     client = Client("http://192.168.191.82:50070", root="/", timeout=10000, session=False)
 
     # 要丢弃的列
-    drop_clo_HosRegister = ['CantonCode', 'FamilyCode', 'PersonalCode', 'InstitutionCode', 'OperationCode',
-                            'RegisterDate']
+    drop_clo_HosRegister = ['CantonCode', 'FamilyCode', 'PersonalCode', 'InstitutionCode', 'OperationCode']
     drop_clo_HosCostMain = ['SettlementDate', 'Ecbc', 'Zfdbbz', 'Mzbcje', 'DT']
     drop_clo_Canton = ['CantonName', 'ZoneCode', 'UpperCode', 'Level', 'DT']
     drop_clo_DiagnoseTreatItem = ['ItemCode_Vc', 'ItemBrevityCode', 'ItemType', 'CompRatio']
