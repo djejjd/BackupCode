@@ -1,6 +1,7 @@
 import time
-from collections import Counter
+import pymysql
 import CreateData as CD
+from collections import Counter
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.types import DecimalType, IntegerType
@@ -38,8 +39,16 @@ def get_data_temp(data):
     return data_nums
 
 
+def get_conn():
+    db = pymysql.connect(host='localhost', user='warren', password='123456', db='spark',
+                         port=3306, charset='utf8')
+    return db
+
+
 # TODO：对比贫困人口和非贫困人口的用药区别
 def get_data_drug_nums(path, year, choice, num):
+    conn = get_conn()
+    cur = conn.cursor()
     start = time.time()
     data = spark.read.format('parquet').load(path)
     data = data.select('PersonalType', 'RegisterDate', 'DT', 'DrugName', 'Count', 'CompRatio_Type') \
@@ -77,22 +86,33 @@ def get_data_drug_nums(path, year, choice, num):
             j = df_not_poor.select('*').where("DrugName = '" + str(i['DrugName']) + "'").collect()[0]
             temp_poor.append(i['DrugName'])
             temp_not_poor.append(i['DrugName'])
-            for p in range(1, 13):
-                temp_poor.append(i[p])
-                temp_not_poor.append(j[p])
+            # 0 --> 建档立卡
+            # 1 --> 非建档立卡
+            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0, choice))
+            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (i["DrugName"], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9], j[10], j[11], j[12], year, 1, choice))
         except Exception as e:
             temp_poor.append(i['DrugName'])
             temp_not_poor.append(i['DrugName'])
-            for p in range(1, 13):
-                temp_poor.append(i[p])
-                temp_not_poor.append(0)
-        all_drug_nums_poor.append(temp_poor)
-        all_drug_nums_not_poor.append(temp_not_poor)
+            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0, choice))
+            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (i["DrugName"], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, year, 1, choice))
+        conn.commit()
+        #     for p in range(1, 13):
+        #         temp_poor.append(i[p])
+        #         temp_not_poor.append(0)
+        # all_drug_nums_poor.append(temp_poor)
+        # all_drug_nums_not_poor.append(temp_not_poor)
 
     all_nums = {
         'poor': all_drug_nums_poor,
         'not_poor': all_drug_nums_not_poor
     }
+    cur.close()
+    conn.close()
+
     '''
     ['药名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] 
     ['复方丹参滴丸', 57, 44, 56, 44, 32, 78, 54, 43, 32, 45, 67, 78],
@@ -174,6 +194,7 @@ def get_data_age_poor(path, year):
 # 搜索
 def get_data_info(path, keyWords, searchContent, page, limit):
     testDF = spark.read.format('parquet').load(path)
+    start = time.time()
     testDF.createOrReplaceTempView('tweets')
     if keyWords == 'name':
         testDF = spark.sql(
@@ -194,10 +215,16 @@ def get_data_info(path, keyWords, searchContent, page, limit):
 
     testDF = testDF.withColumn('InHosDate', F.date_format(testDF.InHosDate, "yyyy-MM-dd"))
     testDF = testDF.withColumn('OutHosDate', F.date_format(testDF.OutHosDate, "yyyy-MM-dd"))
+    end = time.time()
+    print("1: " + str(end - start))
     testDF.show(testDF.count())
 
+    start = time.time()
     testDF = testDF.toPandas()
+    end = time.time()
+    print("2: " + str(end - start))
 
+    start = time.time()
     t = 0
     json_list = []
     register_list = []
@@ -224,7 +251,8 @@ def get_data_info(path, keyWords, searchContent, page, limit):
         t += 1
         if t == 20:
             break
-
+    end = time.time()
+    print("3: " + str(end - start))
     for i in json_list:
         print(i)
 
@@ -255,25 +283,35 @@ def get_data_info(path, keyWords, searchContent, page, limit):
 
 
 # 获得药品费用数据
-def drug_fee_temp(data):
+def drug_fee_temp(data, personalType, feeKey, classKey):
     data = data.withColumn("RegisterDate", data.RegisterDate.substr(6, 2)) \
-        .withColumnRenamed('RegisterDate', 'Month') \
-        .drop('CompRatio_Type')
+        .withColumnRenamed('RegisterDate', 'Month')\
+        .drop('PersonalType', "CompRatio_Type")
 
     data = data.withColumn("Month", data.Month.cast(IntegerType()))
 
     data = data.groupBy("DT") \
         .pivot("Month", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) \
-        .agg(F.sum("FeeSum")) \
+        .agg(F.sum(str(feeKey))) \
         .fillna(0)
-
+    conn = get_conn()
+    cur = conn.cursor()
+    
     data = data.orderBy(data['DT'].asc())
     fee_list = []
     for i in data.collect():
         temp = []
         for j in range(1, 13):
             temp.append(i[j])
+        print(temp)
+        cur.execute("INSERT INTO drugFeeList VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], int(i[0]), str(classKey), str(feeKey), personalType))
+        conn.commit()
         fee_list.append(temp)
+
+    cur.close()
+    conn.close()
+
     return fee_list
 
 
@@ -283,9 +321,11 @@ def get_data_drug_fee(path, classKey, feeKey):
     data = inputs.select('RegisterDate', 'CompRatio_Type', 'DT', feeKey, 'PersonalType') \
         .where('CompRatio_Type = "{}"'.format(str(classKey)))
     data01 = data.where(data.PersonalType == "17")
-    list01 = drug_fee_temp(data01)
+    # 0 建档立卡
+    list01 = drug_fee_temp(data01, 0, feeKey, classKey)
     data02 = data.where(data.PersonalType != "17")
-    list02 = drug_fee_temp(data02)
+    # 1 非建档立卡
+    list02 = drug_fee_temp(data02, 1, feeKey, classKey)
 
     fee_list = list01 + list02
     print(fee_list)
@@ -305,7 +345,36 @@ if __name__ == '__main__':
 
     inputFile = 'hdfs://localhost:9000/result/form_par_new'
     # read_data_content(inputFile)
-    get_data_drug_nums(inputFile, '2017', '丙类', 5)
+    # get_data_drug_nums(inputFile, '2017', '甲类', 50)
     # get_data_age_poor(inputFile, '2017')
-    # get_data_info(inputFile, 'name', '柳三女', 1, 20)
+    get_data_info(inputFile, 'name', '柳三女', 1, 20)
     # get_data_drug_fee(inputFile, '甲类', 'FeeSum')
+    # get_data_drug_fee(inputFile, '乙类', 'FeeSum')
+    # get_data_drug_fee(inputFile, '丙类', 'FeeSum')
+    # get_data_drug_fee(inputFile, '甲类', 'AllowedComp')
+    # get_data_drug_fee(inputFile, '乙类', 'AllowedComp')
+    # get_data_drug_fee(inputFile, '丙类', 'AllowedComp')
+    # get_data_drug_fee(inputFile, '甲类', 'UnallowedComp')
+    # get_data_drug_fee(inputFile, '乙类', 'UnallowedComp')
+    # get_data_drug_fee(inputFile, '丙类', 'UnallowedComp')
+
+    '''
+    1 2 3 4 5 6 7 8 9 10 11 12 year class feeType personalType
+    '''
+
+    '''
+    class: (药品类型)
+    甲类
+    乙类
+    丙类
+    all 
+    
+    feeType: (费用类型)
+    FeeSum
+    AllowedComp
+    UnallowedComp
+    
+    personType: (人员类型)
+    0
+    1
+    '''

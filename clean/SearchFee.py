@@ -29,6 +29,7 @@ from pyspark.sql.types import DecimalType, IntegerType
 # TODO: 按月分类统计药品（分甲、乙、丙）
 # TODO：三年的扶贫费用开支对比
 # TODO：多做对比突出显示扶贫
+
 # 机器学习
 # TODO:预测未来几年医保扶贫费用的持续开支情况
 # TODO:预测未来几年扶贫人口患病人群主要用药情况(纳入医保补偿范围)
