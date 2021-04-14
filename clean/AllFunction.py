@@ -232,6 +232,32 @@ def get_data_info(path, keyWords, searchContent, page, limit):
     for a, b, c, d, e, f, g, h, i, j in zip(testDF["CertificateCode"], testDF['Desc'], testDF['AllName'],
                                             testDF["Name"], testDF['Age'], testDF['Sex'], testDF['HosRegisterCode'],
                                             testDF['InHosDate'], testDF['OutHosDate'], testDF['DaysInHos']):
+        # start = time.time()
+        # conn = get_conn()
+        # cur = conn.cursor()
+
+        # cur.execute("SELECT * FROM drugNameList WHERE HosRegisterCode = %s", (str(g)))
+        # result = cur.fetchall()
+        # drug_name_list = []
+        # for i in result:
+        #     if int(i[5]) < 0:
+        #         continue
+        #     temp_drug = [{
+        #         'HosRegisterCode': i[0],
+        #         'ItemName': i[1],
+        #         'ExpenseType': i[2],
+        #         'DrugName': i[3],
+        #         'CompRatio_Type': i[4],
+        #         'Count': i[5],
+        #         'FeeSum': i[6],
+        #         'UnallowedComp': i[7]
+        #     }]
+        #     drug_name_list.append(temp_drug)
+        # cur.close()
+        # conn.close()
+        # end = time.time()
+        # print("ee： " + str(end - start))
+
         if a in id_list:
             # 该CertificateCode曾经添加过，再出现就说明出现了新的HosRegisterCode
             i = id_list.index(a)

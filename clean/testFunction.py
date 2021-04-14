@@ -3,6 +3,7 @@ import pymysql
 from collections import Counter
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
+from pyspark.sql.types import IntegerType, FloatType, LongType, StringType
 
 
 def print_data(path01, path02):
@@ -95,11 +96,28 @@ def get_data_drug(path_drug, path_person):
     # conn = get_conn()
     # cur = conn.cursor()
 
-    data_drug = spark.read.format('csv').option("header", "true").load(path_drug)\
-        .select("HosRegisterCode", "ItemName", "Expense_Type_Name", "DrugName", "CompRatio_Type", "Count", "FeeSum", "UnallowedComp")
+    data_drug = spark.read.format('csv').option("header", "true").load(path_drug) \
+        .select("HosRegisterCode", "ItemName", "Expense_Type_Name", "DrugName", "CompRatio_Type", "Count", "FeeSum",
+                "UnallowedComp")
+    # allFee.Fee.cast(DecimalType(18, 2))
+    data_drug = data_drug.withColumn("HosRegisterCode", data_drug.HosRegisterCode.cast(StringType())) \
+        .withColumn("Count", data_drug.Count.cast(IntegerType())) \
+        .withColumn("FeeSum", data_drug.FeeSum.cast(FloatType())) \
+        .withColumn("UnallowedComp", data_drug.UnallowedComp.cast(FloatType()))
 
     file_save = '/home/hadoop/data/csv'
-    data_drug.write.format('csv').option("header", "true").mode("overwrite").save(file_save)
+    data_drug.repartition(5).write.format('csv').option("header", "true").mode("overwrite").save(file_save)
+
+    # prop = {
+    #     'user': 'root',
+    #     'password': '123456',
+    #     'driver': 'com.mysql.jdbc.Driver'
+    # }
+    # data_drug.write.jdbc("jdbc:mysql://localhost:3306/test", "drugNameList", "append", prop)
+
+    # file_save = '/home/hadoop/data/csv'
+    # data_drug.write.format('csv').option("header", "true").mode("overwrite").save(file_save)
+
     # data_drug = data_drug.collect()
     # print("-----------")
     # for i in data_drug:
@@ -110,12 +128,24 @@ def get_data_drug(path_drug, path_person):
     # cur.close()
     # conn.close()
 
-
     '''
     住院编码          项目名称   费用类型           药品名      药品类别      数量   总费用  自付金额
     HosRegisterCode ItemName Expense_Type_Name DrugName CompRatio_Type Count FeeSum UnallowedComp 
     '''
 
+
+def get_result():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("SELECT * FROM drugNumList")
+
+    result = cur.fetchall()
+    for i in result:
+        print(i[0], i[1])
+        break
+    cur.close()
+    conn.close()
 
 
 if __name__ == '__main__':
@@ -136,8 +166,8 @@ if __name__ == '__main__':
 
     # 打印结果
     # print_data(path_par, inputFile)
-    get_data_drug(path_par, inputFile)
-
+    # get_data_drug(path_par, inputFile)
+    get_result()
     # get_data_info(inputFile, 'name', '柳三女', 1, 20)
 
 '''

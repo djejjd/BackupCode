@@ -90,6 +90,6 @@ if __name__ == '__main__':
     # 存放数据集（仅含有住院等级码，药品名，以及每种药的使用次数）
     path_csv = 'hdfs://localhost:9000/data/data_tree'
 
-    # create_data(path_par)
+    create_data(path_par)
     # 测试数据集是否有问题
-    test(path_par, path_csv)
+    # test(path_par, path_csv)

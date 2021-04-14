@@ -244,4 +244,4 @@ if __name__ == '__main__':
     # getDataDrugAllowed(inputFile)
     # getDataDrugPoor(inputFile, tt="乙类")
     # getDataPlacePoor(inputFile)
-    getDataAgePoor(inputFile, '2017')
+    # getDataAgePoor(inputFile, '2017')
