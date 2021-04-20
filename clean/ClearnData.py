@@ -48,7 +48,7 @@ def addDaysInHos(data):
     # 计算天数
     data = data.withColumn('DaysInHos', F.datediff(data['OutHosDate'], data['InHosDate']))
     # 删除天数为负数的行
-    data = data.select('*').where(data.DaysInHos >= 0).dropDuplicates(subset=['HosRegisterCode'])
+    data = data.select('*').where(data.DaysInHos >= 0)
     # 删除OutHosDate和InHosDate
     # data = data.drop('OutHosDate', 'InHosDate').dropDuplicates(subset=['HosRegisterCode'])
     data.show(50)
@@ -83,6 +83,7 @@ def getNewAge(data):
 # 剩余null替换为0
 def dealNull(data):
     data = data.fillna('0')
+    print(data.count())
     data.write.format('parquet').mode("overwrite").save(inputFile)
     # data.write.format('csv').option("header", "true").mode("overwrite").save(inputFile2)
 
@@ -99,6 +100,6 @@ if __name__ == '__main__':
         .enableHiveSupport() \
         .getOrCreate()
 
-    inputFile = 'hdfs://localhost:9000/result/form_par_new'
+    inputFile = 'hdfs://localhost:9000/result/form_par_all'
     inputFile2 = 'hdfs://localhost:9000/result/all_form'
     changeSex(inputFile2)

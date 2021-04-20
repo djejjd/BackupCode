@@ -23,6 +23,11 @@ def read_data_content(path):
 
 # TODO: 按月分类统计药品（分甲、乙、丙）
 def get_data_temp(data):
+    """
+    将药品按月分类计算并计算总和
+    @param data: 传入的dataframe
+    @return: 处理的结果的dataframe
+    """
     data_poor = data.withColumn('Count', F.when(data.Count <= 0, 0).otherwise(data.Count))
 
     data_nums = data_poor.groupby("DrugName") \
@@ -35,21 +40,31 @@ def get_data_temp(data):
                                                    data_nums['5'] + data_nums['6'] + data_nums['7'] + data_nums['8'] +
                                                    data_nums['9'] + data_nums['10'] + data_nums['11'] + data_nums[
                                                        '12']))
-    # data_nums = data_nums.orderBy(data_nums['Sum'].desc())
+    data_nums = data_nums.orderBy(data_nums['Sum'].desc())
     return data_nums
 
 
+# 连接Mysql数据库
 def get_conn():
+    """
+    连接Mysql
+    @return: 连接的接口
+    """
     db = pymysql.connect(host='localhost', user='warren', password='123456', db='spark',
                          port=3306, charset='utf8')
     return db
 
 
-# TODO：对比贫困人口和非贫困人口的用药区别
-def get_data_drug_nums(path, year, choice, num):
-    conn = get_conn()
-    cur = conn.cursor()
-    start = time.time()
+def drug_nums_to_mysql(path, year, choice, num):
+    """
+    将历年药品每月用量及总和导入Mysql
+    @param path: 文件路径
+    @param year: 年份
+    @param choice: 药品类型
+    @param num: 展示数量
+    @return: null
+    """
+
     data = spark.read.format('parquet').load(path)
     data = data.select('PersonalType', 'RegisterDate', 'DT', 'DrugName', 'Count', 'CompRatio_Type') \
         .where("CompRatio_Type = '" + choice + "'") \
@@ -73,50 +88,92 @@ def get_data_drug_nums(path, year, choice, num):
     all_drug_nums_poor = [['药名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']]
     all_drug_nums_not_poor = [['药名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']]
 
+    conn = get_conn()
+    cur = conn.cursor()
     t = 0
     df_poor = df_poor.collect()
 
     for i in df_poor:
+        print(str(t))
         if t == int(num):
             break
         t += 1
         temp_poor = []
         temp_not_poor = []
+
         try:
-            j = df_not_poor.select('*').where("DrugName = '" + str(i['DrugName']) + "'").collect()[0]
+            j = df_not_poor.select('*').where(df_not_poor.DrugName == str(i['DrugName'])).collect()[0]
+            print(i)
             temp_poor.append(i['DrugName'])
             temp_not_poor.append(i['DrugName'])
             # 0 --> 建档立卡
             # 1 --> 非建档立卡
-            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0, choice))
-            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (i["DrugName"], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9], j[10], j[11], j[12], year, 1, choice))
+            cur.execute(
+                "INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0,
+                 choice, i['Sum']))
+            cur.execute(
+                "INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (i["DrugName"], j[1], j[2], j[3], j[4], j[5], j[6], j[7], j[8], j[9], j[10], j[11], j[12], year, 1,
+                 choice, j['Sum']))
         except Exception as e:
+            print(e)
             temp_poor.append(i['DrugName'])
             temp_not_poor.append(i['DrugName'])
-            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0, choice))
-            cur.execute("INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (i["DrugName"], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, year, 1, choice))
+            cur.execute(
+                "INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (i["DrugName"], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], year, 0,
+                 choice, i['Sum']))
+            cur.execute(
+                "INSERT INTO drugNumList VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (i["DrugName"], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, year, 1, choice, 0))
         conn.commit()
-        #     for p in range(1, 13):
-        #         temp_poor.append(i[p])
-        #         temp_not_poor.append(0)
-        # all_drug_nums_poor.append(temp_poor)
-        # all_drug_nums_not_poor.append(temp_not_poor)
 
-    all_nums = {
-        'poor': all_drug_nums_poor,
-        'not_poor': all_drug_nums_not_poor
-    }
-    cur.close()
-    conn.close()
+    # all_nums = {
+    #     'poor': all_drug_nums_poor,
+    #     'not_poor': all_drug_nums_not_poor
+    # }
+    # cur.close()
+    # conn.close()
 
     '''
     ['药名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] 
     ['复方丹参滴丸', 57, 44, 56, 44, 32, 78, 54, 43, 32, 45, 67, 78],
     '''
+
+
+def get_drug_nums_mysql(year, choice, num, personalType):
+    """
+    @param year: 年份
+    @param choice: 药品类别
+    @param num: 导入数量
+    @param personalType: 人员类型
+    @return: null
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    if str(year) != 'all':
+        cur.execute("SELECT drugNumList.drugName, drugNumList.1, drugNumList.2, drugNumList.3, drugNumList.4, "
+                    "drugNumList.5, drugNumList.6, drugNumList.7, drugNumList.8, drugNumList.9, drugNumList.10, "
+                    "drugNumList.11, drugNumList.12 FROM drugNumList "
+                    "WHERE year=%s AND type=%s AND drugType=%s",
+                    (int(year), personalType, choice))
+    else:
+        cur.execute("SELECT a.* FROM drugNumList a "
+                    "WHERE type=%s AND drugType=%s "
+                    "AND (SELECT COUNT(*) "
+                    "FROM drugNumList b "
+                    "WHERE b.drugName=a.drugName AND b.year=a.year AND b.sum >= a.sum"
+                    ")<=2 "
+                    "ORDER BY year, sum DESC ",
+                    (personalType, choice))
+        results = cur.fetchall()
+        result_list = []
+        i = 0
+        print(list(results[0]))
+
+    cur.close()
+    conn.close()
 
 
 # 获得年龄数据
@@ -129,66 +186,55 @@ def get_data_age_poor(path, year):
         .drop("HosRegisterCode") \
         .withColumn('Count', F.lit(1))
 
-    data_poor = data.withColumn('Age', data.Age.cast(IntegerType())).where('PersonalType = 17').drop("DT",
-                                                                                                     "PersonalType")
-    data_not_poor = data.withColumn('Age', data.Age.cast(IntegerType())).where('PersonalType != 17').drop("DT",
-                                                                                                          "PersonalType")
+    data_poor = data.withColumn('Age', data.Age.cast(IntegerType())).where('PersonalType = 17') \
+        .drop("DT", "PersonalType")
+    data_not_poor = data.withColumn('Age', data.Age.cast(IntegerType())).where('PersonalType != 17') \
+        .drop("DT", "PersonalType")
 
-    # men_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    # women_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    # for i in data_new.collect():
-    #     p = int(i['Age'] / 10)
-    #     if p > 9:
-    #         p = 9
-    #     men_list[p] += int(i['男'])
-    #     women_list[p] += int(i['女'])
+    data_poor = data_poor.groupby("Age") \
+        .pivot("Sex", ['男', '女']) \
+        .agg(F.sum('Count')) \
+        .fillna(0)
 
-    data_poor.createOrReplaceTempView("form")
-    data_not_poor.createOrReplaceTempView("form1")
-    df = spark.sql("""
-    Select Sex,
-           sum(case when Age > 90 then 1 else 0 end) as A,
-           sum(case when Age between 80 and 89 then 1 else 0 end) as B,
-           sum(case when Age between 70 and 79 then 1 else 0 end) as C,
-           sum(case when Age between 60 and 69 then 1 else 0 end) as D,
-           sum(case when Age between 50 and 59 then 1 else 0 end) as E,
-           sum(case when Age between 40 and 49 then 1 else 0 end) as F,
-           sum(case when Age between 30 and 39 then 1 else 0 end) as G,
-           sum(case when Age between 20 and 29 then 1 else 0 end) as H,
-           sum(case when Age between 10 and 19 then 1 else 0 end) as I,
-           sum(case when Age between 0 and 9 then 1 else 0 end) as J
-    from form
-    group by Sex""")
+    data_not_poor = data_not_poor.groupby("Age") \
+        .pivot("Sex", ['男', '女']) \
+        .agg(F.sum('Count')) \
+        .fillna(0)
 
-    men_list = []
-    women_list = []
+    man_list_poor = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    women_list_poor = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    man_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    women_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    for i, j in zip(data_poor.collect(), data_not_poor.collect()):
+        p = int(i['Age'] / 10)
+        q = int(j['Age'] / 10)
+        if p > 9 or q > 9:
+            p = 9
+            q = 9
+        man_list_poor[p] += int(i['男'])
+        women_list_poor[p] += int(i['女'])
 
-    start = time.time()
-    df_col = df.collect()
-    end = time.time()
+        man_list[q] += int(j['男'])
+        women_list[q] += int(j['女'])
+    men_list_poor = [-x for x in man_list_poor]
+    men_list = [-x for x in man_list]
 
-    for j in range(1, 11):
-        men_list.append(df_col[1][j])
-        women_list.append(df_col[2][j])
-        # men_list = [df_col[1][1], df_col[1][2], df_col[1][3], df_col[1][4], df_col[1][5], df_col[1][6], df_col[1][7],
-        #             df_col[1][8], df_col[1][9], df_col[1][10], ]
-        # women_list = [df_col[2][1], df_col[2][2], df_col[2][3], df_col[2][4], df_col[2][5], df_col[2][6], df_col[2][7],
-        #       df_col[2][8], df_col[2][9], df_col[2][10], ]
-    # data_women = data.where(data.Sex == '女').drop('Sex')
-    # data_women = data_women.groupBy('Age') \
-    #     .pivot('DT', ['2017', '2018', '2019']) \
-    #     .agg(F.sum('Count'))\
-    #     .fillna(0)
-
-    # data_men = data.where(data.Sex == '男').drop('Sex')
-    # data_men = data_men.groupBy('Age') \
-    #     .pivot('DT', ['2017', '2018', '2019']) \
-    #     .agg(F.sum('Count')).fillna('0') \
-    #     .fillna(0)
-    # data = data.withColumn('Age', data.Age.cast(IntegerType())) \
-    #     .orderBy(data['2019'].desc())
-    # data.show()
-    # data.groupby().sum().show()
+    # data_poor.createOrReplaceTempView("form")
+    # data_not_poor.createOrReplaceTempView("form1")
+    # df = spark.sql("""
+    # Select Sex,
+    #        sum(case when Age > 90 then 1 else 0 end) as A,
+    #        sum(case when Age between 80 and 89 then 1 else 0 end) as B,
+    #        sum(case when Age between 70 and 79 then 1 else 0 end) as C,
+    #        sum(case when Age between 60 and 69 then 1 else 0 end) as D,
+    #        sum(case when Age between 50 and 59 then 1 else 0 end) as E,
+    #        sum(case when Age between 40 and 49 then 1 else 0 end) as F,
+    #        sum(case when Age between 30 and 39 then 1 else 0 end) as G,
+    #        sum(case when Age between 20 and 29 then 1 else 0 end) as H,
+    #        sum(case when Age between 10 and 19 then 1 else 0 end) as I,
+    #        sum(case when Age between 0 and 9 then 1 else 0 end) as J
+    # from form
+    # group by Sex""")
 
 
 # 搜索
@@ -198,120 +244,36 @@ def get_data_info(path, keyWords, searchContent, page, limit):
     testDF.createOrReplaceTempView('tweets')
     if keyWords == 'name':
         testDF = spark.sql(
-            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, DaysInHos "
-            "FROM tweets WHERE tweets.Name='{}'".format(searchContent)) \
-            .dropDuplicates(subset=['HosRegisterCode'])
+            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, "
+            "DaysInHos, TotalFee "
+            "FROM tweets WHERE tweets.Name='{}'".format(searchContent))
     elif keyWords == 'id':
         testDF = spark.sql(
-            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, DaysInHos "
+            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, "
+            "DaysInHos, TotalFee "
             "FROM tweets WHERE tweets.CertificateCode='{}'".format(searchContent)) \
             .dropDuplicates(subset=['HosRegisterCode'])
     elif keyWords == 'hosid':
         testDF = spark.sql(
-            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, DaysInHos "
+            "SELECT CertificateCode, Desc, AllName, Name, Age, Sex, HosRegisterCode, OutHosDate, InHosDate, "
+            "DaysInHos, TotalFee "
             "FROM tweets "
             "WHERE tweets.HosRegisterCode='{}'".format(searchContent)) \
             .dropDuplicates(subset=['HosRegisterCode'])
 
-    testDF = testDF.withColumn('InHosDate', F.date_format(testDF.InHosDate, "yyyy-MM-dd"))
-    testDF = testDF.withColumn('OutHosDate', F.date_format(testDF.OutHosDate, "yyyy-MM-dd"))
-    end = time.time()
-    print("1: " + str(end - start))
-    testDF.show(testDF.count())
-
-    start = time.time()
-    testDF = testDF.toPandas()
-    end = time.time()
-    print("2: " + str(end - start))
-
-    start = time.time()
-    t = 0
-    json_list = []
-    register_list = []
-    id_list = []
-    for a, b, c, d, e, f, g, h, i, j in zip(testDF["CertificateCode"], testDF['Desc'], testDF['AllName'],
-                                            testDF["Name"], testDF['Age'], testDF['Sex'], testDF['HosRegisterCode'],
-                                            testDF['InHosDate'], testDF['OutHosDate'], testDF['DaysInHos']):
-        # start = time.time()
-        # conn = get_conn()
-        # cur = conn.cursor()
-
-        # cur.execute("SELECT * FROM drugNameList WHERE HosRegisterCode = %s", (str(g)))
-        # result = cur.fetchall()
-        # drug_name_list = []
-        # for i in result:
-        #     if int(i[5]) < 0:
-        #         continue
-        #     temp_drug = [{
-        #         'HosRegisterCode': i[0],
-        #         'ItemName': i[1],
-        #         'ExpenseType': i[2],
-        #         'DrugName': i[3],
-        #         'CompRatio_Type': i[4],
-        #         'Count': i[5],
-        #         'FeeSum': i[6],
-        #         'UnallowedComp': i[7]
-        #     }]
-        #     drug_name_list.append(temp_drug)
-        # cur.close()
-        # conn.close()
-        # end = time.time()
-        # print("ee： " + str(end - start))
-
-        if a in id_list:
-            # 该CertificateCode曾经添加过，再出现就说明出现了新的HosRegisterCode
-            i = id_list.index(a)
-            # 获得在json_list中的位置
-            num = Counter(register_list)[a]
-            temp = {'HosRegisterCode': g, 'InHosDate': h, 'OutHosDate': i, 'DayInHos': j}
-            tt = json_list[num]['Info']
-            tt.append(temp)
-            json_list[num]['Times'] += 1
-        else:
-            # 该CertificateCode未曾添加过
-            id_list.append(a)
-            temp = {'HosRegisterCode': g, 'InHosDate': h, 'OutHosDate': i, 'DayInHos': j}
-            json_dict = {'Name': d, "Age": e, "Sex": f, "Desc": b, "CertificateCode": a, "Times": 1, "AllName": c,
-                         'Info': [temp]}
-            json_list.append(json_dict)
-        t += 1
-        if t == 20:
-            break
-    end = time.time()
-    print("3: " + str(end - start))
-    for i in json_list:
-        print(i)
-
-        # TODO：3. 住院编码 只有一人， 且只有一次记录
-        '''
-        
-        查询方法：
-        1. 姓名  多个人， 多次记录
-        2. 身份证号 只有一人， 有多次记录
-        
-        
-        
-        数据格式1：
-        {
-            'Name': None,
-            'Age': None,
-            "Sex": None,
-            "Desc": None,
-            "CertificateCode": None,
-            "Times": None,
-            "AllName": None,
-            "Info": [
-                {"HosRegisterCode": None, "InHosDate": None, "OutHosDate": None, "DayInHos": None},
-                {"HosRegisterCode": None, "InHosDate": None, "OutHosDate": None, "DayInHos": None},
-                {"HosRegisterCode": None, "InHosDate": None, "OutHosDate": None, "DayInHos": None},
-            ]
-        }'''
-
 
 # 获得药品费用数据
 def drug_fee_temp(data, personalType, feeKey, classKey):
+    """
+    获取不同人员患者药品费用
+    @param data: dataframe
+    @param personalType: 人员类型
+    @param feeKey: 费用类型
+    @param classKey: 药品类型
+    @return: list
+    """
     data = data.withColumn("RegisterDate", data.RegisterDate.substr(6, 2)) \
-        .withColumnRenamed('RegisterDate', 'Month')\
+        .withColumnRenamed('RegisterDate', 'Month') \
         .drop('PersonalType', "CompRatio_Type")
 
     data = data.withColumn("Month", data.Month.cast(IntegerType()))
@@ -322,8 +284,9 @@ def drug_fee_temp(data, personalType, feeKey, classKey):
         .fillna(0)
     conn = get_conn()
     cur = conn.cursor()
-    
+
     data = data.orderBy(data['DT'].asc())
+    data.show()
     fee_list = []
     for i in data.collect():
         temp = []
@@ -331,30 +294,63 @@ def drug_fee_temp(data, personalType, feeKey, classKey):
             temp.append(i[j])
         print(temp)
         cur.execute("INSERT INTO drugFeeList VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], int(i[0]), str(classKey), str(feeKey), personalType))
+                    (
+                        i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], int(i[0]),
+                        str(classKey),
+                        str(feeKey), personalType))
         conn.commit()
         fee_list.append(temp)
 
     cur.close()
     conn.close()
+    fee_list = []
 
     return fee_list
 
 
+# 获得药品费用数据
 def get_data_drug_fee(path, classKey, feeKey):
+    """
+    获取药品费用数据
+    @param path: 文件路径
+    @param classKey: 药品类型
+    @param feeKey: 费用类型
+    @return: list
+    """
     # 按月展示
     inputs = spark.read.format('parquet').load(path)
     data = inputs.select('RegisterDate', 'CompRatio_Type', 'DT', feeKey, 'PersonalType') \
         .where('CompRatio_Type = "{}"'.format(str(classKey)))
-    data01 = data.where(data.PersonalType == "17")
     # 0 建档立卡
+    data01 = data.where(data.PersonalType == "17")
     list01 = drug_fee_temp(data01, 0, feeKey, classKey)
-    data02 = data.where(data.PersonalType != "17")
     # 1 非建档立卡
+    data02 = data.where(data.PersonalType != "17")
     list02 = drug_fee_temp(data02, 1, feeKey, classKey)
 
-    fee_list = list01 + list02
-    print(fee_list)
+
+# 获得患者住院的药品信息
+def get_info_drug(path_info, path_data):
+    data_info = spark.read.format('parquet').load(path_info)
+    data_drug = spark.read.format('parquet').load(path_data)
+
+    data_info.createOrReplaceTempView("info")
+    data_drug.createOrReplaceTempView("drug")
+
+    start = time.time()
+    result = spark.sql(f"""
+                       SELECT 
+                       drug.HosRegisterCode, drug.ItemName, drug.Expense_Type_Name, drug.DrugName, 
+                       drug.CompRatio_Type, drug.Count, drug.FeeSum, drug.UnallowedComp 
+                       FROM 
+                       info , drug 
+                       WHERE 
+                       info.HosRegisterCode = drug.HosRegisterCode  AND info.HosRegisterCode = 'J8030410000002030002' 
+                       """)
+    end = time.time()
+    print(str(end - start))
+    print(result.count())
+    result.show()
 
 
 if __name__ == '__main__':
@@ -370,19 +366,24 @@ if __name__ == '__main__':
         .getOrCreate()
 
     inputFile = 'hdfs://localhost:9000/result/form_par_new'
+    dataFile = 'hdfs://localhost:9000/result/drugNotesPar'
+    allFile = 'hdfs://localhost:9000/result/form_par_all'
+    # get_info_drug(inputFile, dataFile)
     # read_data_content(inputFile)
     # get_data_drug_nums(inputFile, '2017', '甲类', 50)
     # get_data_age_poor(inputFile, '2017')
-    get_data_info(inputFile, 'name', '柳三女', 1, 20)
-    # get_data_drug_fee(inputFile, '甲类', 'FeeSum')
-    # get_data_drug_fee(inputFile, '乙类', 'FeeSum')
-    # get_data_drug_fee(inputFile, '丙类', 'FeeSum')
-    # get_data_drug_fee(inputFile, '甲类', 'AllowedComp')
-    # get_data_drug_fee(inputFile, '乙类', 'AllowedComp')
-    # get_data_drug_fee(inputFile, '丙类', 'AllowedComp')
-    # get_data_drug_fee(inputFile, '甲类', 'UnallowedComp')
-    # get_data_drug_fee(inputFile, '乙类', 'UnallowedComp')
-    # get_data_drug_fee(inputFile, '丙类', 'UnallowedComp')
+    # get_data_info(inputFile, 'name', '柳三女', 1, 20)
+    # get_drug_nums_mysql(2017, '甲类', 10, 0)
+    # drug_nums_to_mysql(allFile, 2017, "乙类", 20)
+    get_data_drug_fee(allFile, "甲类", "FeeSum")
+    get_data_drug_fee(allFile, "乙类", "FeeSum")
+    get_data_drug_fee(allFile, "丙类", "FeeSum")
+    get_data_drug_fee(allFile, "甲类", "AllowedComp")
+    get_data_drug_fee(allFile, "乙类", "AllowedComp")
+    get_data_drug_fee(allFile, "丙类", "AllowedComp")
+    get_data_drug_fee(allFile, "甲类", "UnallowedComp")
+    get_data_drug_fee(allFile, "乙类", "UnallowedComp")
+    get_data_drug_fee(allFile, "丙类", "UnallowedComp")
 
     '''
     1 2 3 4 5 6 7 8 9 10 11 12 year class feeType personalType

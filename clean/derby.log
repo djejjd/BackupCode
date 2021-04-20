@@ -1,13 +1,13 @@
 ----------------------------------------------------------------
-Tue Apr 13 15:38:47 CST 2021:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0178-ca2b-1fab-0000139e8a90 
-on database directory /home/hadoop/PycharmProjects/pythonProject/clean/metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@5f0a4460 
+Fri Apr 16 16:21:31 CST 2021:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0178-d9c5-55ac-0000145f8308 
+on database directory /home/hadoop/PycharmProjects/pythonProject/clean/metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@f8b8acb 
 Loaded from file:/home/hadoop/.conda/envs/spark/lib/python3.6/site-packages/pyspark/jars/derby-10.12.1.1.jar
 java.vendor=Oracle Corporation
 java.runtime.version=1.8.0_281-b09
 user.dir=/home/hadoop/PycharmProjects/pythonProject/clean
 os.name=Linux
 os.arch=amd64
-os.version=5.8.0-48-generic
+os.version=5.8.0-49-generic
 derby.system.home=null
 Database Class Loader started - derby.database.classpath=''

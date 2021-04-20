@@ -1,4 +1,5 @@
 import time
+import json
 import pymysql
 from collections import Counter
 import pyspark.sql.functions as F
@@ -7,19 +8,14 @@ from pyspark.sql.types import IntegerType, FloatType, LongType, StringType
 
 
 def print_data(path01, path02):
-    # data01 = spark.read.format('csv').option("header", "true").load(path01).where("HosRegisterCode = '17090400000003010012'")
-    # data01.show()
-
-    data02 = spark.read.format('parquet').load(path02)
-    # data01.where((data01['注射用胞磷胆碱钠'] != 0) | (data01['木瓜丸'] != 0) | \
-    #              (data01['一次性鼻胃肠管'] != 0) | (data01['卡前列素氨丁三醇注射液'] != 0)).show(10)
-    # print(data02.columns)
-    # data02.where(data02.DaysInHos > '0').show()
-    print(data02.count())
-    data02.show()
+    data01 = spark.read.format('csv').option("header", "true").load(path02).where("Level = '03'")
+    data01.show()
+    #
+    # data02 = spark.read.format('parquet').load(path02)
+    # print(data02.count())
+    # data02.show()
 
 
-# 搜索
 def get_data_info(path, keyWords, searchContent, page, limit):
     testDF = spark.read.format('parquet').load(path)
     start = time.time()
@@ -148,6 +144,27 @@ def get_result():
     conn.close()
 
 
+def insertAge():
+    conn = get_conn()
+    cur = conn.cursor()
+    # value = {'data': [6280, 1343, 6428, 4990, 8905, 11893, 11914, 8161, 5211, 411]}
+    # value = json.dumps(value)
+    # cur.execute("INSERT INTO peopleAgeList VALUES (%s, %s, %s, %s)",
+    #             (value, 2017, 1, 'women'))
+    # conn.commit()
+    cur.execute("SELECT json_extract(data, '$.data') "
+                "FROM peopleAgeList "
+                "WHERE year = %s ",
+                2017)
+    results = cur.fetchall()
+    print(results[0][0])
+    man_list_poor = list(map(int, results[0][0][1:-1].split(', ')))
+    print(man_list_poor)
+
+    cur.close()
+    conn.close()
+
+
 if __name__ == '__main__':
     spark = SparkSession.builder \
         .master("local") \
@@ -161,13 +178,15 @@ if __name__ == '__main__':
     # 大表
     # path_par = 'hdfs://localhost:9000/result/form_par'
     path_par = 'hdfs://localhost:9000/result/cleaned_form'
-    inputFile = 'hdfs://localhost:9000/result/form_par_new'
+    # inputFile = 'hdfs://localhost:9000/result/form_par'
+    inputFile = 'hdfs://localhost:9000/csv/Join_Canton'
     # inputFile = 'hdfs://localhost:9000/result/all_form'
+    # insertAge()
 
     # 打印结果
-    # print_data(path_par, inputFile)
+    print_data(path_par, inputFile)
     # get_data_drug(path_par, inputFile)
-    get_result()
+    # get_result()
     # get_data_info(inputFile, 'name', '柳三女', 1, 20)
 
 '''
