@@ -8,12 +8,11 @@ from pyspark.sql.types import IntegerType, FloatType, LongType, StringType
 
 
 def print_data(path01, path02):
-    data01 = spark.read.format('csv').option("header", "true").load(path02).where("Level = '03'")
-    data01.show()
-    #
-    # data02 = spark.read.format('parquet').load(path02)
-    # print(data02.count())
-    # data02.show()
+    # data01 = spark.read.format('csv').option("header", "true").load(path02).where("Level = '03'")
+    # data01.show()
+    # data01 = spark.read.format('parquet').load(path01).dropDuplicates(subset=['HosRegisterCode'])
+    data02 = spark.read.format('parquet').load(path02).select("DiseaseCode", "HosRegisterCode", "DT", "DiseaseName")
+    data02.show()
 
 
 def get_data_info(path, keyWords, searchContent, page, limit):
@@ -165,6 +164,10 @@ def insertAge():
     conn.close()
 
 
+def putDiseaseInfoIntoMongodb():
+    path = '/home/hadoop/data_school/new_csv/diseaseInfo.csv'
+
+
 if __name__ == '__main__':
     spark = SparkSession.builder \
         .master("local") \
@@ -177,14 +180,15 @@ if __name__ == '__main__':
 
     # 大表
     # path_par = 'hdfs://localhost:9000/result/form_par'
-    path_par = 'hdfs://localhost:9000/result/cleaned_form'
-    # inputFile = 'hdfs://localhost:9000/result/form_par'
-    inputFile = 'hdfs://localhost:9000/csv/Join_Canton'
+    path_par = 'hdfs://localhost:9000/result/form_par_all'
+    inputFile = 'hdfs://localhost:9000/result/form_par_new'
+    # inputFile = 'hdfs://localhost:9000/csv/Join_Canton'
     # inputFile = 'hdfs://localhost:9000/result/all_form'
     # insertAge()
+    putDiseaseInfoIntoMongodb()
 
     # 打印结果
-    print_data(path_par, inputFile)
+    # print_data(path_par, inputFile)
     # get_data_drug(path_par, inputFile)
     # get_result()
     # get_data_info(inputFile, 'name', '柳三女', 1, 20)

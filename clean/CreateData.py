@@ -17,6 +17,8 @@ changeNameUDF = f.udf(changeDrugName, StringType())
 # 清洗药品名
 def strQ2B(s):
     n = ''
+    if s is None:
+        return "0"
     for char in s:
         num = ord(char)
         if num == 0x3000:  # 将全角空格转成半角空格
@@ -25,7 +27,8 @@ def strQ2B(s):
             num -= 0xFEE0
         num = chr(num)
         n += num
-    ss = re.sub('\(.*\)', '', n).replace(' ', '')
+    ss = n
+    # ss = re.sub('\(.*\)', '', n).replace(' ', '')
     return ss
 
 
