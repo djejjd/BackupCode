@@ -17,8 +17,6 @@ changeNameUDF = f.udf(changeDrugName, StringType())
 # 清洗药品名
 def strQ2B(s):
     n = ''
-    if s is None:
-        return "0"
     for char in s:
         num = ord(char)
         if num == 0x3000:  # 将全角空格转成半角空格
@@ -27,8 +25,7 @@ def strQ2B(s):
             num -= 0xFEE0
         num = chr(num)
         n += num
-    ss = n
-    # ss = re.sub('\(.*\)', '', n).replace(' ', '')
+    ss = re.sub('\(.*\)', '', n).replace(' ', '')
     return ss
 
 
@@ -45,41 +42,42 @@ def create_data(path):
     names = list(set(names))
 
     # 提取总表中的住院等级码和药品名
-    data = data_par.select('HosRegisterCode', 'DrugName').where(data_par['DrugName'] != '0')
-    data = data.withColumn("DrugName", changeNameUDF(data.DrugName))
+    data = data_par.select('HosRegisterCode', 'DrugName', "Count").where(data_par['DrugName'] != '0')
+    data = data.withColumn("DrugName", changeNameUDF(data.DrugName)) \
+        .withColumn("Count", data.Count.cast(IntegerType()))
 
-    # 给所有使用过的药品记1
-    data = data.withColumn('Times', f.lit(1))
     # 以住院登记码做聚合，将药品名一列转为行，并进行匹配计算次数
-    data_pivot = data.groupBy('HosRegisterCode').pivot('DrugName', names).agg(f.sum('Times')).fillna(0)
+    data_pivot = data.groupBy('HosRegisterCode').pivot('DrugName', names).agg(f.sum('Count')).fillna(0)
     # 存储结果
-    data_pivot.write.format('parquet').mode("overwrite").save(path_csv)
+    # data_pivot.write.format('parquet').mode("overwrite").save(path_csv)
 
 
 # 测试数据集内容是否正确
 def test(path1, path2):
-    inputs01 = spark.read.format('parquet').load(path1)
-    # 总表相关数据
-    df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.DrugName != '0').withColumn("DrugName",
-                                                                                                   changeNameUDF(
-                                                                                                       inputs01.DrugName))
-    df = df.withColumn("Times", f.lit(1))
-    dd = df.groupby("HosRegisterCode", "DrugName").agg(f.sum('Times')).withColumnRenamed("sum(Times)", "Times")
-
-    # 验证前一百行是否正确
-    data_lines = dd.head(100)
+    # inputs01 = spark.read.format('parquet').load(path1)
+    # # 总表相关数据
+    # df = inputs01.select('DrugName', 'HosRegisterCode').where(inputs01.DrugName != '0').withColumn("DrugName",
+    #                                                                                                changeNameUDF(
+    #                                                                                                    inputs01.DrugName))
+    # df = df.withColumn("Times", f.lit(1))
+    # dd = df.groupby("HosRegisterCode", "DrugName").agg(f.sum('Times')).withColumnRenamed("sum(Times)", "Times")
+    #
+    # # 验证前一百行是否正确
+    # data_lines = dd.head(100)
 
     # 数据集中的相关数据
     data = spark.read.format('parquet').load(path2)
+    print(data.dtypes)
+    data.show(2)
     # 验证是否合理
-    for line in data_lines:
-        dd_new = data.select("HosRegisterCode", line['DrugName']).where(
-            data.HosRegisterCode == str(line['HosRegisterCode']))
-        ddf = dd_new.select(dd_new[line['DrugName']]).head(1)
-        if ddf[0][0] == line['Times']:
-            continue
-        else:
-            print(line['Times'], ddf[0][0])
+    # for line in data_lines:
+    #     dd_new = data.select("HosRegisterCode", line['DrugName']).where(
+    #         data.HosRegisterCode == str(line['HosRegisterCode']))
+    #     ddf = dd_new.select(dd_new[line['DrugName']]).head(1)
+    #     if ddf[0][0] == line['Times']:
+    #         continue
+    #     else:
+    #         print(line['Times'], ddf[0][0])
 
 
 if __name__ == '__main__':
@@ -87,12 +85,16 @@ if __name__ == '__main__':
         .master("local") \
         .appName("example") \
         .config("spark.debug.maxToStringFields", "1000") \
+        .config("spark.sql.shuffle.partitions", "400") \
+        .config("spark.default.parallelism", "600") \
+        .config("spark.sql.auto.repartition", "true") \
+        .enableHiveSupport() \
         .getOrCreate()
 
-    path_par = 'hdfs://localhost:9000/result/form_par'
+    path_par = 'hdfs://localhost:9000/result/form_par_all'
     # 存放数据集（仅含有住院等级码，药品名，以及每种药的使用次数）
     path_csv = 'hdfs://localhost:9000/data/data_tree'
 
-    create_data(path_par)
+    # create_data(path_par)
     # 测试数据集是否有问题
-    # test(path_par, path_csv)
+    test(path_par, path_csv)

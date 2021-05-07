@@ -667,6 +667,95 @@ def putDiseaseInfoIntoMongodb():
         diseaseInfo.append(temp)
 
 
+def inputPersonInfoIntoMongodb(path):
+    data = spark.read.format('parquet').load(path)
+    df = data.select("HosRegisterCode", "PersonalType", "CertificateCode", "Name", "Sex", "Age", "DiseaseCode",
+                     "InHosDate", "OutHosDate", "DT", "TotalFee", "RealComp", "SelfPay", 'AllName', "Desc", "DaysInHos") \
+        .dropDuplicates(subset=['HosRegisterCode'])
+    print(df.count())
+    tt = df.rdd.collect()
+    for i in tt:
+        start = time.time()
+        df_info = data.where(data.HosRegisterCode == i['HosRegisterCode'])
+        temp = {
+            "HosRegisterCode": i['HosRegisterCode'],
+            "PersonalType": i['PersonalType'],
+            "CertificateCode": i['CertificateCode'],
+            "Name": i['Name'],
+            "Sex": i['Sex'],
+            "Age": i['Age'],
+            "DiseaseCode": i['DiseaseCode'],
+            "InHosDate": i['InHosDate'].strftime("%Y-%m-%d"),
+            "OutHosDate": i['OutHosDate'].strftime("%Y-%m-%d"),
+            "DT": i['DT'],
+            "TotalFee": i['TotalFee'],
+            "RealComp": i['RealComp'],
+            "SelfPay": i['SelfPay'],
+            "AllName": i['AllName'],
+            "Desc": i['Desc'],
+            "DaysInHos": i['DaysInHos'],
+            "DiseaseInHosInfo": []
+        }
+        pp = df_info.rdd.collect()
+        for j in pp:
+            tt = {
+                "ItemName": j['ItemName'],
+                "Count": j['Count'],
+                "FeeSum": j['FeeSum'],
+                "AllowedComp": j['AllowedComp'],
+                "UnallowedComp": j['UnallowedComp'],
+                "ItemType_Name": j['ItemType_Name'],
+                "Expense_Type_Name": j['Expense_Type_Name'],
+                "DrugName": j['DrugName'],
+                "CompRatio_Type": j['CompRatio_Type'],
+            }
+            temp['DiseaseInHosInfo'].append(tt)
+        # saveMongodb(temp)
+        end = time.time()
+        print("time: ", end - start)
+
+    # df = data.rdd.collect()
+    # for i in df:
+    #     temp = {
+    #         "ItemCode": i['ItemCode'],
+    #         "HosRegisterCode": i['HosRegisterCode'],
+    #         "PersonalType": i['PersonalType'],
+    #         "CertificateCode": i['CertificateCode'],
+    #         "Name": i['Name'],
+    #         "Sex": i['Sex'],
+    #         "Age": i['Age'],
+    #         "DiseaseCode": i['DiseaseCode'],
+    #         "InHosDate": i['InHosDate'],
+    #         "OutHosDate": i['OutHosDate'],
+    #         "DT": i['DT'],
+    #         "TotalFee": i['TotalFee'],
+    #         "RealComp": i['RealComp'],
+    #         "SelfPay": i['SelfPay'],
+    #         "AllName": i['AllName'],
+    #         "Desc": i['Desc'],
+    #         "ItemName": i['ItemName'],
+    #         "Count": i['Count'],
+    #         "FeeSum": i['FeeSum'],
+    #         "AllowedComp": i['AllowedComp'],
+    #         "UnallowedComp": i['UnallowedComp'],
+    #         "ItemType_Name": i['ItemType_Name'],
+    #         "Expense_Type_Name": i['Expense_Type_Name'],
+    #         "DrugName": i['DrugName'],
+    #         "CompRatio_Type": i['CompRatio_Type'],
+    #         "DaysInHos": i['DaysInHos']
+    #     }
+    #     saveMongodb(temp)
+
+
+def dealAllInfo(path):
+    data = spark.read.format("parquet").load(path)
+
+    data.write.format("com.mongodb.spark.sql.DefaultSource").mode("append") \
+        .option("uri", "mongodb://127.0.0.1/Spark.allInfo") \
+        .option("database", "Spark") \
+        .option('collection', "allInfo") \
+        .save()
+
 
 if __name__ == '__main__':
     spark = SparkSession.builder \
@@ -679,22 +768,32 @@ if __name__ == '__main__':
         .enableHiveSupport() \
         .getOrCreate()
 
+    # ./ bin / pyspark - -conf
+    # "spark.mongodb.input.uri=mongodb://127.0.0.1/test.myCollection?readPreference=primaryPreferred" \
+    # - -conf
+    # "spark.mongodb.output.uri=mongodb://127.0.0.1/test.myCollection" \
+    # - -packages
+    # org.mongodb.spark: mongo - spark - connector_2
+    # .11: 3.0
+    # .1
+
     inputFile = 'hdfs://localhost:9000/result/form_par_new'
     dataFile = 'hdfs://localhost:9000/result/drugNotesPar'
     allFile = 'hdfs://localhost:9000/result/form_par_all'
     diseaseFile = 'hdfs://localhost:9000/csv/DiseaseDict'
 
-    # MONGO_URL = "mongodb://localhost:27017"
-    # MONGO_DB = "Spark"
-    # MONGO_TABLE = "diseaseInfo"
-    #
-    # client = MongoClient(MONGO_URL)
-    # db = client[MONGO_DB]
+    MONGO_URL = "mongodb://localhost:27017"
+    MONGO_DB = "Spark"
+    MONGO_TABLE = "allInfo"
+    client = MongoClient(MONGO_URL)
+    db = client[MONGO_DB]
 
+    dealAllInfo(allFile)
+    # inputPersonInfoIntoMongodb(allFile)
     # dealDisease(inputFile)
     # getGrowthRate(inputFile)
     # getKMeansData(inputFile)
-    putDiseaseInfoIntoMongodb()
+    # putDiseaseInfoIntoMongodb()
     # getDiseaseNumsByFee(inputFile)
     # getGrowthRateMongo()
     # mongodb(2017, '0-9')
