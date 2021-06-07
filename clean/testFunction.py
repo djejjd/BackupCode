@@ -11,8 +11,8 @@ def print_data(path01, path02):
     # data01 = spark.read.format('csv').option("header", "true").load(path02).where("Level = '03'")
     # data01.show()
     # data01 = spark.read.format('parquet').load(path01).dropDuplicates(subset=['HosRegisterCode'])
-    data02 = spark.read.format('parquet').load(path02).select("DiseaseCode", "HosRegisterCode", "DT", "DiseaseName")
-    data02.show()
+    data02 = spark.read.format('parquet').load(path02)
+    data02.show(3)
 
 
 def get_data_info(path, keyWords, searchContent, page, limit):
@@ -185,8 +185,8 @@ if __name__ == '__main__':
     # inputFile = 'hdfs://localhost:9000/csv/Join_Canton'
     # inputFile = 'hdfs://localhost:9000/result/all_form'
     # insertAge()
-    putDiseaseInfoIntoMongodb()
-
+    # putDiseaseInfoIntoMongodb()
+    print_data(path_par, inputFile)
     # 打印结果
     # print_data(path_par, inputFile)
     # get_data_drug(path_par, inputFile)
