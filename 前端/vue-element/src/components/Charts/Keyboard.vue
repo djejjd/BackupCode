@@ -10,6 +10,9 @@
       <el-select v-model="drugChartQuery.numKey" style="width: 105px" class="filter-item" placeholder="展示数量">
         <el-option v-for="item in numOptions"  :key="item.key" :label="item.label" :value="item.value"></el-option>
       </el-select>
+      <el-select v-model="drugChartQuery.typeKey" style="width: 105px" class="filter-item" placeholder="展示类型">
+        <el-option v-for="item in typeOptions"  :key="item.key" :label="item.label" :value="item.value"></el-option>
+      </el-select>
       <el-button type="primary" class="el-icon-pie-chart" @click="showChart">
         展示
       </el-button>
@@ -53,7 +56,8 @@ export default {
       drugChartQuery: {
         yearKey: "",
         classKey: "",
-        numKey: ""
+        numKey: "",
+        typeKey: ""
       },
       yearOptions: [{
         value: '2017',
@@ -84,6 +88,13 @@ export default {
       },{
         value: '20',
         label: '20'
+      }],
+      typeOptions: [{
+        value: '0',
+        label: '按数量'
+      },{
+        value: '1',
+        label: '按费用'
       }]
     }
   },
@@ -131,11 +142,19 @@ export default {
       this.listLoading = true
       getDrugChart(this.drugChartQuery).then(response => {
         this.updateDrugNumChart(response.data)
+        console.log(response.data)
         this.listLoading = false
       })
     },
     updateDrugNumChart(chartData) {
       let chartSeries = []
+      let xName = ''
+      if (this.drugChartQuery.typeKey === '0') {
+        xName = '药品数量/个'
+      }
+      else {
+        xName = '药品费用/元'
+      }
 
       for (let i = 1; i < chartData.items.length; i++) {
         chartSeries.push({type: 'line', smooth: true, seriesLayoutBy: 'row', emphasis: {focus: 'series'},xAxisIndex: 0, yAxisIndex: 0})
@@ -199,8 +218,8 @@ export default {
           {type: 'category', name: '月份', gridIndex: 1}
         ],
         yAxis: [
-          {gridIndex: 0, name: '药品数目'},
-          {gridIndex: 1, name: '药品数目'}
+          {gridIndex: 0, name: xName},
+          {gridIndex: 1, name: xName}
         ],
         grid: [
           {top: '55%', width: 500, left: 100, containLabel: true},

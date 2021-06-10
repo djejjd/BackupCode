@@ -4,14 +4,14 @@
     <panel-group />
 
     <el-row :gutter="8">
-      <el-col :span="16" style="padding-right:8px;margin-bottom:30px;">
-        <div>
+      <el-col :span="12" style="padding-right:8px;margin-bottom:30px;">
+        <div class="bar-chart">
           <bar-chart />
         </div>
       </el-col>
-      <el-col :span="8" style="margin-bottom:30px;">
-        <div>
-          <todo-list />
+      <el-col :span="12" style="padding-right:8px;margin-bottom:30px;">
+        <div class="box-card">
+          <box-card />
         </div>
       </el-col>
 <!--      <el-col :xs="{span: 24}" :sm="{span: 12}" :md="{span: 12}" :lg="{span: 6}" :xl="{span: 6}" style="margin-bottom:30px;">-->
@@ -66,13 +66,20 @@ export default {
   },
   data() {
     return {
-
+      showChart: false
     }
+  },
+  mounted() {
+
   },
   methods: {
     // handleSetLineChartData(type) {
     //   this.lineChartData = lineChartData[type]
     // }
+    showChartSign(data) {
+      console.log("展示chart")
+      this.showChart = true
+    }
   }
 }
 </script>
@@ -101,5 +108,9 @@ export default {
   .chart-wrapper {
     padding: 8px;
   }
+}
+
+.box-card {
+  height: 450px;
 }
 </style>

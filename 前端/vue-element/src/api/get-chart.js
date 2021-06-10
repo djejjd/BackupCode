@@ -67,3 +67,52 @@ export function getDataKMeansChart(query) {
 }
 
 
+export function getDataDiseaseCodeChart(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/diseaseCode',
+    method: 'get',
+    params: query
+  })
+}
+
+export function getLoginInfo(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/login',
+    method: 'get',
+    params: query
+  })
+}
+
+export function getRole(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/getRole',
+    method: 'get',
+    params: query
+  })
+}
+
+export function addRole(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/addRole',
+    method: 'get',
+    params: query
+  })
+}
+
+export function deleteRole(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/deleteRole',
+    method: 'get',
+    params: query
+  })
+}
+
+export function updateRole(query) {
+  return request({
+    url: 'http://127.0.0.1:5000/dev-api/updateRole',
+    method: 'get',
+    params: query
+  })
+}
+
+

@@ -1,6 +1,7 @@
 import time
 import json
 import pymysql
+from pymongo import MongoClient
 from collections import Counter
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
@@ -11,8 +12,63 @@ def print_data(path01, path02):
     # data01 = spark.read.format('csv').option("header", "true").load(path02).where("Level = '03'")
     # data01.show()
     # data01 = spark.read.format('parquet').load(path01).dropDuplicates(subset=['HosRegisterCode'])
+    data01 = spark.read.format('parquet').load(path01)
     data02 = spark.read.format('parquet').load(path02)
-    data02.show(3)
+    print(data01.count(), data02.count())
+
+
+def saveMongodb(data):
+    if db[MONGO_TABLE].insert(data):
+        print("成功存储: ", data)
+    else:
+        print("未成功存储: ", data)
+
+
+# 计算扶贫费用
+def getFeePoor(data, personalType, feeKey):
+    data = data.withColumn("Month", data.Month.cast(IntegerType()))
+
+    data = data.groupBy("DT") \
+        .pivot("Month", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) \
+        .agg(F.sum(str(feeKey))) \
+        .fillna(0)
+
+    data = data.orderBy(data['DT'].asc())
+    data.show()
+
+    # client = MongoClient("localhost", 27017)
+    # db = client['Spark']
+    # table = db['feeInfo']
+
+    for i in data.rdd.collect():
+        temp = []
+        for j in range(1, 13):
+            temp.append(round(i[j], 2))
+
+        dictFee = {
+            'year': i[0],
+            'fee': temp,
+            'feeType': feeKey,
+            'personalType': personalType
+        }
+        saveMongodb(dictFee)
+
+
+def getFee(path):
+    data = spark.read.format("parquet") \
+        .load(path) \
+        .select("RegisterDate", "DT", "TotalFee", "RealComp", "PersonalType")
+    data = data.withColumn("RegisterDate", data.RegisterDate.substr(6, 2)) \
+        .withColumnRenamed('RegisterDate', 'Month')
+    # 17-->贫困户
+    df = data.where(data.PersonalType == "17")
+    getFeePoor(df.drop("RealComp", "PersonalType"), 0, 'TotalFee')
+    getFeePoor(df.drop("TotalFee", "PersonalType"), 0, 'RealComp')
+
+    # 非贫困户
+    df = data.where(data.PersonalType != '17')
+    getFeePoor(df.drop("RealComp", "PersonalType"), 1, 'TotalFee')
+    getFeePoor(df.drop("TotalFee", "PersonalType"), 1, 'RealComp')
 
 
 def get_data_info(path, keyWords, searchContent, page, limit):
@@ -168,12 +224,103 @@ def putDiseaseInfoIntoMongodb():
     path = '/home/hadoop/data_school/new_csv/diseaseInfo.csv'
 
 
+def calDrugFee(data, personalType, drugType, year):
+    data = data.withColumn("Month", data.Month.cast(IntegerType()))
+
+    data = data.groupBy("ItemName") \
+        .pivot("Month", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) \
+        .agg(F.sum("FeeSum")) \
+        .fillna(0)
+
+    data_nums = data.withColumn('Sum', F.lit(0))
+    data_nums = data_nums.withColumn('Sum', F.when(data_nums.Sum == 0,
+                                                   data_nums['1'] + data_nums['2'] + data_nums['3'] + data_nums['4'] +
+                                                   data_nums['5'] + data_nums['6'] + data_nums['7'] + data_nums['8'] +
+                                                   data_nums['9'] + data_nums['10'] + data_nums['11'] + data_nums[
+                                                       '12']))
+    data_nums = data_nums.orderBy(data_nums['Sum'].desc())
+
+    for i in data_nums.rdd.collect():
+        temp = []
+        for j in range(1, 13):
+            temp.append(round(i[j], 2))
+
+        dictFee = {
+            'drugName': i[0],
+            'fee': temp,
+            'sum': i[13],
+            'drugType': drugType,
+            'year': year,
+            'personalType': personalType
+        }
+        saveMongodb(dictFee)
+
+
+def getDrugFee(path):
+    data = spark.read.format('parquet') \
+        .load(path) \
+        .select("ItemName", "FeeSum", "DT", "RegisterDate", "CompRatio_Type", "PersonalType")
+    data = data.where(data.CompRatio_Type != '0') \
+        .withColumn("RegisterDate", data.RegisterDate.substr(6, 2)) \
+        .withColumnRenamed('RegisterDate', 'Month')
+
+    # 处理贫困人口药品费用
+    df = data.where((data.DT == '2017') & (data.PersonalType == 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "甲类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType == 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "甲类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType == 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "甲类", 2019)
+
+    df = data.where((data.DT == '2017') & (data.PersonalType == 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "乙类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType == 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "乙类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType == 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "乙类", 2019)
+
+    df = data.where((data.DT == '2017') & (data.PersonalType == 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "丙类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType == 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "丙类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType == 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 0, "丙类", 2019)
+
+    # 处理非贫困人口药品费用
+    df = data.where((data.DT == '2017') & (data.PersonalType != 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "甲类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType != 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "甲类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType != 17) & (data.CompRatio_Type == "甲类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "甲类", 2019)
+
+    df = data.where((data.DT == '2017') & (data.PersonalType != 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "乙类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType != 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "乙类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType != 17) & (data.CompRatio_Type == "乙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "乙类", 2019)
+
+    df = data.where((data.DT == '2017') & (data.PersonalType != 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "丙类", 2017)
+    df = data.where((data.DT == '2018') & (data.PersonalType != 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "丙类", 2018)
+    df = data.where((data.DT == '2019') & (data.PersonalType != 17) & (data.CompRatio_Type == "丙类"))
+    calDrugFee(df.drop("CompRatio_Type", "PersonalType", "DT"), 1, "丙类", 2019)
+
+
 if __name__ == '__main__':
     spark = SparkSession.builder \
         .master("local") \
         .appName("example") \
         .config("spark.debug.maxToStringFields", "100") \
         .getOrCreate()
+
+    MONGO_URL = "mongodb://localhost:27017"
+    MONGO_DB = "Spark"
+    MONGO_TABLE = "drugFeeList"
+    client = MongoClient(MONGO_URL)
+    db = client[MONGO_DB]
 
     # 数据集
     path_data = 'hdfs://localhost:9000/data/data_tree'
@@ -184,10 +331,11 @@ if __name__ == '__main__':
     inputFile = 'hdfs://localhost:9000/result/form_par_new'
     # inputFile = 'hdfs://localhost:9000/csv/Join_Canton'
     # inputFile = 'hdfs://localhost:9000/result/all_form'
+    getDrugFee(inputFile)
     # insertAge()
     # putDiseaseInfoIntoMongodb()
-    print_data(path_par, inputFile)
-    # 打印结果
+    # print_data(path_par, inputFile)
+    # getFee(inputFile)
     # print_data(path_par, inputFile)
     # get_data_drug(path_par, inputFile)
     # get_result()

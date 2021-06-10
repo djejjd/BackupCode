@@ -57,7 +57,7 @@ export default {
   mounted() {
     this.initChart()
     // this.getData()
-    this.testOptions()
+    // this.testOptions()
   },
   beforeDestroy() {
     if (!this.chart) {
@@ -69,68 +69,7 @@ export default {
   methods: {
     initChart() {
       this.chart = echarts.init(document.getElementById(this.id))
-      echarts.registerMap('BT', BT);
-      this.chart.setOption({
-        tooltip: {
-          trigger: 'item',
-          formatter: '{b}<br/>{c} (p / km2)'
-        },
-        toolbox: {
-          show: true,
-          orient: 'vertical',
-          left: 'right',
-          top: 'center',
-          feature: {
-            dataView: {readOnly: false},
-            restore: {},
-            saveAsImage: {}
-          }
-        },
-        visualMap: {
-          min: 800,
-          max: 50000,
-          text: ['High', 'Low'],
-          realtime: false,
-          calculable: true,
-          inRange: {
-            color: ['lightskyblue', 'yellow', 'orangered']
-          }
-        },
-        series: [
-          {
-            name: '包头',
-            type: 'map',
-            mapType: 'BT', // 自定义扩展图表类型
-            label: {
-              show: true
-            },
-            data: [
-              {name: '东河区', value: 20057.34},
-              {name: '昆都仑区', value: 15477.48},
-              {name: '青山区', value: 31686.1},
-              {name: '石拐区', value: 6992.6},
-              {name: '白云鄂博矿区', value: 44045.49},
-              {name: '九原区', value: 40689.64},
-              {name: '土默特右旗', value: 37659.78},
-              {name: '固阳县', value: 45180.97},
-              {name: '达尔罕茂明安联合旗', value: 55204.26},
-              // {name: '稀土高新区', value: 21900.9} 划归九原区
-            ],
-            // 自定义名称映射
-            nameMap: {
-              'DongHe': '东河区',
-              'KunDuLun': '昆都仑区',
-              'QingSan': '青山区',
-              'ShiGuai': '石拐区',
-              'BaiYun': '白云鄂博矿区',
-              'JiuYuan': '九原区',
-              'TuMoTe': '土默特右旗',
-              'GuYang': '固阳县',
-              'DaErHan': '达尔罕茂明安联合旗'
-            }
-          }
-        ]
-      })
+      this.getData()
     },
     getData() {
       this.listLoading = true
@@ -141,36 +80,65 @@ export default {
       })
     },
     updateChart(chartData) {
-      const Sex = chartData.sex
-      const series = []
-      for (let i = 0; i < chartData.items.length; i++) {
-        let sex = chartData.sex[i]
-        // console.log(chartData.items[i])
-        series.push({
-          name: sex,
+      console.log(chartData)
+      const chartSeries = []
+      const years = ['建档立卡2017', '建档立卡2018', '建档立卡2019', '非建档立卡2017', '非建档立卡2018', '非建档立卡2019']
+      for (let i = 0; i < chartData.length; i++) {
+        chartSeries.push({
+          name: years[i],
           type: 'bar',
-          stack: 'a',
-          label: {
-            normal: {
-              show: true,
-              formatter: function (params) {
-                return (Math.abs(params.value))
-              }
-            }
-          },
-          emphasis: {
-            focus: 'series'
-          },
-          data: chartData.items[i]
+          data: chartData[i]['Fee']
         })
       }
       const dataOption = {
-        series: series
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'cross',
+            crossStyle: {
+              color: '#999'
+            }
+          },
+          formatter: function (data) {
+            let temp = data[0].name;
+            for (let i = 0; i < data.length; i++) {
+              temp += "<br/>" + data[i].seriesName + ': ' +
+                (Math.ceil(data[i].value).toString().replace(/(\d)(?=(?:\d{3})+$)/g, '$1,'))
+                + "元";
+            }
+            return temp;
+          }
+        },
+        toolbox: {
+          feature: {
+            magicType: {show: true, type: ['line', 'bar']},
+            restore: {show: true},
+          }
+        },
+        xAxis: [
+          {
+            type: 'category',
+            data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+            axisPointer: {
+              type: 'shadow'
+            }
+          }
+        ],
+        yAxis: {
+          type: 'value',
+          name: '费用',
+          min: 0,
+          axisLabel: {
+            formatter: '{value} /元'
+          }
+        },
+        legend: {
+          data: ['建档立卡2017', '建档立卡2018', '建档立卡2019']
+        },
+        series: chartSeries
       }
+      console.log(dataOption)
       this.chart.setOption(dataOption)
-    },
-    testOptions() {
-      this.getData()
     }
   },
 }

@@ -47,29 +47,30 @@
 
       <el-button :loading="loading" type="primary" style="width:100%;margin-bottom:30px;" @click.native.prevent="handleLogin">登录</el-button>
 
-      <div style="position:relative">
-        <div class="tips">
-          <span>Username : admin</span>
-          <span>Password : any</span>
-        </div>
-        <div class="tips">
-          <span style="margin-right:18px;">Username : editor</span>
-          <span>Password : any</span>
-        </div>
-      </div>
+<!--      <div style="position:relative">-->
+<!--        <div class="tips">-->
+<!--          <span>Username : admin</span>-->
+<!--          <span>Password : any</span>-->
+<!--        </div>-->
+<!--        <div class="tips">-->
+<!--          <span style="margin-right:18px;">Username : editor</span>-->
+<!--          <span>Password : any</span>-->
+<!--        </div>-->
+<!--      </div>-->
     </el-form>
   </div>
 </template>
 
 <script>
 import { validUsername } from '@/utils/validate'
+import {getLoginInfo} from "@/api/get-chart";
 
 export default {
   name: 'Login',
   components: {  },
   data() {
     const validateUsername = (rule, value, callback) => {
-      if (!validUsername(value)) {
+      if (value === '') {
         callback(new Error('Please enter the correct user name'))
       } else {
         callback()
@@ -84,13 +85,18 @@ export default {
     }
     return {
       loginForm: {
-        username: 'admin',
-        password: '111111'
+        username: '',
+        password: ''
+      },
+      userInfo: {
+        username: '',
+        password: ''
       },
       loginRules: {
         username: [{ required: true, trigger: 'blur', validator: validateUsername }],
         password: [{ required: true, trigger: 'blur', validator: validatePassword }]
       },
+      loginInfo: undefined,
       passwordType: 'password',
       capsTooltip: false,
       loading: false,
@@ -139,24 +145,81 @@ export default {
         this.$refs.password.focus()
       })
     },
+    // 处理登录
     handleLogin() {
+      // getLoginInfo(this.loginForm).then(response => {
+      //   this.loginInfo = response.data
+      //   console.log(this.loginInfo)
+      //   let valid = this.loginInfo['loginInfo']
+      //   if (valid) {
+      //     console.log("登录")
+      //     this.loading = true
+      //     // 保持登录状态
+      //     console.log("保持登录状态")
+      //     this.$store.dispatch('user/login', this.loginForm)
+      //       .then(() => {
+      //         // 页面跳转
+      //         this.$router.push({ path: this.redirect || '/', query: this.otherQuery })
+      //         this.loading = false
+      //       })
+      //       .catch(() => {
+      //         this.loading = false
+      //       })
+      //     console.log("end")
+      //   } else {
+      //     console.log('error submit!!')
+      //     return false
+      //   }
+      //
+      // })
+      getLoginInfo(this.loginForm).then(response => {
+        this.loginInfo = response.data
+        let info = this.loginInfo['loginInfo']
+        let type = this.loginInfo['type']
+        if (info) {
+          if (type === 0) {
+            // 普通用户
+            this.userInfo.username = "editor"
+            this.userInfo.password = "12344553"
+          }
+          else {
+            // 管理员
+            this.userInfo.username = "admin"
+            this.userInfo.password = "12345454"
+          }
+          this.getLogin()
+        }
+        else {
+          this.$message({
+            type: 'false',
+            message: '用户名或密码错误!'
+          })
+        }
+      })
+
+    },
+    getLogin() {
       this.$refs.loginForm.validate(valid => {
         if (valid) {
           this.loading = true
-          this.$store.dispatch('user/login', this.loginForm)
+          // 保存登录状态
+          this.$store.dispatch('user/login', this.userInfo)
             .then(() => {
-              this.$router.push({ path: this.redirect || '/', query: this.otherQuery })
+              // 跳转界面???
+              this.$router.replace({ path: this.redirect || '/', query: this.otherQuery })
               this.loading = false
             })
             .catch(() => {
               this.loading = false
             })
+          console.log("end")
         } else {
           console.log('error submit!!')
           return false
         }
       })
-    },
+    }
+    ,
     getOtherQuery(query) {
       return Object.keys(query).reduce((acc, cur) => {
         if (cur !== 'redirect') {

@@ -143,7 +143,7 @@ export const asyncRoutes = [
     meta: {
       title: '管理员功能',
       icon: 'lock',
-      roles: ['admin', 'editor'] // you can set roles in root nav
+      roles: ['admin'] // you can set roles in root nav
     },
     children: [
      /* {

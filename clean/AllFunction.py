@@ -710,7 +710,7 @@ def inputPersonInfoIntoMongodb(path):
                 "CompRatio_Type": j['CompRatio_Type'],
             }
             temp['DiseaseInHosInfo'].append(tt)
-        # saveMongodb(temp)
+        saveMongodb(temp)
         end = time.time()
         print("time: ", end - start)
 

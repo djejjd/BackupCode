@@ -1,24 +1,24 @@
 <template>
   <div class="app-container">
-    <el-button type="primary" @click="handleAddRole">New Role</el-button>
+    <el-button type="primary" @click="handleAddRole">增加用户</el-button>
 
     <el-table :data="rolesList" style="width: 100%;margin-top:30px;" border>
-      <el-table-column align="center" label="Role Key" width="220">
+      <el-table-column align="center" label="身份" width="220">
         <template slot-scope="scope">
           {{ scope.row.key }}
         </template>
       </el-table-column>
-      <el-table-column align="center" label="Role Name" width="220">
+      <el-table-column align="center" label="用户名" width="220">
         <template slot-scope="scope">
           {{ scope.row.name }}
         </template>
       </el-table-column>
-      <el-table-column align="header-center" label="Description">
+      <el-table-column align="header-center" label="密码">
         <template slot-scope="scope">
-          {{ scope.row.description }}
+          {{ scope.row.password }}
         </template>
       </el-table-column>
-      <el-table-column align="center" label="Operations">
+      <el-table-column align="center" label="操作">
         <template slot-scope="scope">
           <el-button type="primary" size="small" @click="handleEdit(scope)">Edit</el-button>
           <el-button type="danger" size="small" @click="handleDelete(scope)">Delete</el-button>
@@ -26,34 +26,18 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog :visible.sync="dialogVisible" :title="dialogType==='edit'?'Edit Role':'New Role'">
+    <el-dialog :visible.sync="dialogVisible" :title="dialogType==='edit'?'修改用户信息':'增加用户'">
       <el-form :model="role" label-width="80px" label-position="left">
-        <el-form-item label="Name">
-          <el-input v-model="role.name" placeholder="Role Name" />
+        <el-form-item label="用户名">
+          <el-input v-model="role.name" placeholder="输入用户名" :readonly="dialogType !== 'edit' ? false: 'readonly'"/>
         </el-form-item>
-        <el-form-item label="Desc">
-          <el-input
-            v-model="role.description"
-            :autosize="{ minRows: 2, maxRows: 4}"
-            type="textarea"
-            placeholder="Role Description"
-          />
-        </el-form-item>
-        <el-form-item label="Menus">
-          <el-tree
-            ref="tree"
-            :check-strictly="checkStrictly"
-            :data="routesData"
-            :props="defaultProps"
-            show-checkbox
-            node-key="path"
-            class="permission-tree"
-          />
+        <el-form-item label="密码">
+          <el-input v-model="role.password" placeholder="输入密码" />
         </el-form-item>
       </el-form>
       <div style="text-align:right;">
-        <el-button type="danger" @click="dialogVisible=false">Cancel</el-button>
-        <el-button type="primary" @click="confirmRole">Confirm</el-button>
+        <el-button type="danger" @click="dialogVisible=false">取消</el-button>
+        <el-button type="primary" @click="confirmRole">确定</el-button>
       </div>
     </el-dialog>
   </div>
@@ -62,7 +46,8 @@
 <script>
 import path from 'path'
 import { deepClone } from '@/utils'
-import { getRoutes, getRoles, addRole, deleteRole, updateRole } from '@/api/role'
+// import { getRoutes, getRoles, addRole, deleteRole, updateRole } from '@/api/role'
+import {getRole, deleteRole, addRole, updateRole} from "@/api/get-chart";
 
 const defaultRole = {
   key: '',
@@ -83,6 +68,10 @@ export default {
       defaultProps: {
         children: 'children',
         label: 'title'
+      },
+      userInfo: {
+        "username": "",
+        "password": ""
       }
     }
   },
@@ -93,17 +82,13 @@ export default {
   },
   created() {
     // Mock: get all routes and roles list from server
-    this.getRoutes()
-    this.getRoles()
+    // this.getRoutes()
+    this.getRole()
   },
   methods: {
-    async getRoutes() {
-      const res = await getRoutes()
-      this.serviceRoutes = res.data
-      this.routes = this.generateRoutes(res.data)
-    },
-    async getRoles() {
-      const res = await getRoles()
+
+    async getRole() {
+      const res = await getRole()
       this.rolesList = res.data
     },
 
@@ -161,26 +146,36 @@ export default {
       this.dialogVisible = true
       this.checkStrictly = true
       this.role = deepClone(scope.row)
-      this.$nextTick(() => {
-        const routes = this.generateRoutes(this.role.routes)
-        this.$refs.tree.setCheckedNodes(this.generateArr(routes))
-        // set checked state of a node not affects its father and child nodes
-        this.checkStrictly = false
-      })
+      // this.$nextTick(() => {
+      //   const routes = this.generateRoutes(this.role.routes)
+      //   this.$refs.tree.setCheckedNodes(this.generateArr(routes))
+      //   // set checked state of a node not affects its father and child nodes
+      //   this.checkStrictly = false
+      // })
     },
     handleDelete({ $index, row }) {
-      this.$confirm('Confirm to remove the role?', 'Warning', {
-        confirmButtonText: 'Confirm',
-        cancelButtonText: 'Cancel',
+      this.userInfo.username = row.name
+      this.$confirm('确定删除这个角色?', '警告', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消 ',
         type: 'warning'
       })
         .then(async() => {
-          await deleteRole(row.key)
-          this.rolesList.splice($index, 1)
-          this.$message({
-            type: 'success',
-            message: 'Delete succed!'
-          })
+          let res = await deleteRole(this.userInfo)
+          console.log(res)
+          if (res.data === 1) {
+            this.rolesList.splice($index, 1)
+            this.$message({
+              type: 'success',
+              message: '删除成功!'
+            })
+          }
+          else {
+            this.$message({
+              type: 'error',
+              message: '删除失败!'
+            })
+          }
         })
         .catch(err => { console.error(err) })
     },
@@ -203,36 +198,64 @@ export default {
     },
     async confirmRole() {
       const isEdit = this.dialogType === 'edit'
-
-      const checkedKeys = this.$refs.tree.getCheckedKeys()
-      this.role.routes = this.generateTree(deepClone(this.serviceRoutes), '/', checkedKeys)
+      this.userInfo.username = this.role.name
+      this.userInfo.password = this.role.password
+      // const checkedKeys = this.$refs.tree.getCheckedKeys()
+      // this.role.routes = this.generateTree(deepClone(this.serviceRoutes), '/', checkedKeys)
 
       if (isEdit) {
-        await updateRole(this.role.key, this.role)
-        for (let index = 0; index < this.rolesList.length; index++) {
-          if (this.rolesList[index].key === this.role.key) {
-            this.rolesList.splice(index, 1, Object.assign({}, this.role))
-            break
-          }
-        }
-      } else {
-        const { data } = await addRole(this.role)
-        this.role.key = data.key
-        this.rolesList.push(this.role)
-      }
-
-      const { description, key, name } = this.role
-      this.dialogVisible = false
-      this.$notify({
-        title: 'Success',
-        dangerouslyUseHTMLString: true,
-        message: `
+        let ret = await updateRole(this.userInfo)
+        if (ret.data === 1) {
+          const { key, name } = this.role
+          this.dialogVisible = false
+          this.$notify({
+            title: 'Success',
+            dangerouslyUseHTMLString: true,
+            message: `
             <div>Role Key: ${key}</div>
             <div>Role Name: ${name}</div>
-            <div>Description: ${description}</div>
           `,
-        type: 'success'
-      })
+            type: 'success'
+          })
+
+          for (let index = 0; index < this.rolesList.length; index++) {
+            if (this.rolesList[index].name === this.role.name) {
+              this.rolesList.splice(index, 1, Object.assign({}, this.role))
+              break
+            }
+          }
+        } else {
+          this.$message({
+            type: '错误',
+            message: '修改失败!'
+          })
+        }
+      } else {
+        const ret = await addRole(this.userInfo)
+        console.log(this.role)
+        this.role.key = "普通用户"
+        this.rolesList.push(this.role)
+
+        if (ret.data === 1) {
+          const { description, key, name } = this.role
+          this.dialogVisible = false
+          this.$notify({
+            title: 'Success',
+            dangerouslyUseHTMLString: true,
+            message: `
+            <div>Role Key: ${key}</div>
+            <div>Role Name: ${name}</div>
+          `,
+            type: 'success'
+          })
+        } else {
+          this.$message({
+            type: '错误',
+            message: '添加失败!'
+          })
+        }
+      }
+
     },
     // reference: src/view/layout/components/Sidebar/SidebarItem.vue
     onlyOneShowingChild(children = [], parent) {

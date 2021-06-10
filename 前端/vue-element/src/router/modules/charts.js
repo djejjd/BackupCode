@@ -30,12 +30,12 @@ const chartsRouter = {
       name: 'MixChart',
       meta: { title: '年龄分布', noCache: true }
     },
-    // {
-    //   path: 'map-chart',
-    //   component: () => import('@/views/charts/map-chart'),
-    //   name: 'MapChart',
-    //   meta: { title: '地理分布', noCache: true }
-    // }
+    {
+      path: 'map-chart',
+      component: () => import('@/views/charts/map-chart'),
+      name: 'MapChart',
+      meta: { title: '扶贫费用统计', noCache: true }
+    },
     {
       path: 'disease-chart',
       component: () => import('@/views/charts/disease-chart'),
